@@ -1,0 +1,10 @@
+{
+  "name": "HUMOR Poster — Editable Import",
+  "id": "humor-poster-editable-import",
+  "api": "1.0.0",
+  "documentAccess": "dynamic-page",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": { "allowedDomains": ["none"] }
+}

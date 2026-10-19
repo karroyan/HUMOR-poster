@@ -1,0 +1,35 @@
+from pathlib import Path
+import base64, json, html, csv
+from PIL import Image
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import ImageReader
+from reportlab.graphics.barcode.qrencoder import QRCode
+
+ROOT=Path(__file__).resolve().parents[1]
+A=ROOT/'assets'
+W,H=1400,900
+INK='#142D3B'; MUTED='#536977'; BLUE='#216BDA'; TEAL='#007D77'; ORANGE='#D56B29'
+BG='#FAFAF6'; LINE='#D7E1E4'; PALE='#EEF4FA'; CREAM='#FFF2E7'; WHITE='#FFFFFF'
+nodes=[]; sec='Header'
+def add(t,**kw):
+    nodes.append(dict(type=t,section=sec,**kw))
+def rect(x,y,w,h,fill,stroke=None,r=0,name='Panel',sw=1):
+    add('rect',name=name,x=x,y=y,w=w,h=h,fill=fill,stroke=stroke,radius=r,strokeWidth=sw)
+def txt(x,y,text,size=13,fill=INK,bold=False,name=None,align='left'):
+    add('text',name=name or text,x=x,y=y,text=text,size=size,fill=fill,weight='bold' if bold else 'regular',align=align)
+def lines(x,y,ss,size=13,leading=18,**kw):
+    for i,s in enumerate(ss): txt(x,y+i*leading,s,size,**kw)
+def line(x1,y1,x2,y2,color=LINE,sw=1):
+    add('line',name='Rule',x1=x1,y1=y1,x2=x2,y2=y2,stroke=color,strokeWidth=sw)
+def arrow(x1,y,x2,color=BLUE):
+    line(x1,y,x2,y,color,1.7); line(x2-5,y-4,x2,y,color,1.7); line(x2-5,y+4,x2,y,color,1.7)
+def pic(file,x,y,w,h=None,name=None):
+    im=Image.open(A/file)
+    if h is None: h=w*im.height/im.width
+    add('image',name=name or file,x=x,y=y,w=w,h=h,data=base64.b64encode((A/file).read_bytes()).decode())
+def label(x,y,num,title):
+    rect(x,y-15,26,21,BLUE,r=4); txt(x+13,y,num,12,WHITE,True,align='center')
+    txt(x+37,y,title,19,bold=True)
+

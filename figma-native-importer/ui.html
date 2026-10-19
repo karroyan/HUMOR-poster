@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><style>
+body{font:13px/1.6 system-ui,sans-serif;padding:16px;color:#172d43}h2{font-size:18px;margin:0 0 10px}input{display:block;margin:16px 0}button{background:#147d91;color:white;border:0;border-radius:6px;padding:9px 15px;cursor:pointer}button:disabled{opacity:.5}#status{margin-top:12px;white-space:pre-wrap}small{color:#53677b}
+</style><h2>HUMOR 海报 · 可编辑导入</h2><div>选择交付文件中的 <b>poster.scene.json</b>。文字、形状和图片将成为独立图层。</div><input id="file" type="file" accept=".json,application/json"><button id="import" disabled>导入到当前 Figma 页面</button><div id="status"></div><small>离线运行，不上传文件。画布尺寸约 5291 × 3402 px。</small><script>
+let scene;const status=document.getElementById('status'), button=document.getElementById('import');
+document.getElementById('file').onchange=async e=>{button.disabled=true;scene=null;try{const file=e.target.files[0];if(!file)return;scene=JSON.parse(await file.text());if(!Array.isArray(scene.nodes))throw Error('缺少 nodes 列表');status.textContent='已读取 '+scene.nodes.length+' 个图层。';button.disabled=false;}catch(err){status.textContent='无法读取：'+err.message;}};
+button.onclick=()=>{button.disabled=true;status.textContent='正在创建图层…';parent.postMessage({pluginMessage:{type:'import',scene}},'*');};
+onmessage=e=>{const m=e.data.pluginMessage;if(!m)return;if(m.type==='success')status.textContent='完成：'+m.count+' 个图层，字体 '+m.font+'。请检查文字基线与换行后再打印。';if(m.type==='error')status.textContent='导入失败：'+m.message;button.disabled=false;};
+</script></html>

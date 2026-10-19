@@ -1,0 +1,247 @@
+From Perception to Punchline:
+Empowering VLM with the Art of In-the-wild Memes
+Xueyan Li [1]   Yingyi Xue [1,2]   Mengjie Jiang [3]   Qingzi Zhu [1]   Yazhe Niu [4]
+[1] Shanghai Artificial Intelligence Laboratory   [2] Fudan University   [3] Columbia Engineering, Columbia University   [4] CUHK MMLab
+HUMOR
+Hierarchical Understanding
+and Meme Optimization
+NeurIPS 2026
+1
+What makes a caption a meme?
+Meme generation connects visual relationships to a situation and a punchline.
+Naming objects is not enough; the same template can express many different
+intentions.
+Input: a template plus user intent (emotion, theme, style or keywords).
+Output: captions assigned to the template’s text regions.
+One template, three different outcomes
+Human reference
+Single-path CoT
+HUMOR-CoT
+Fig. 16 examples. Single-path reasoning repeats anticipation; the reference supplies
+a concrete obstacle. HUMOR learns a context-dependent delayed-reward situation.
+2
+Why compare within a template?
+A global “funniness score” assumes that unrelated jokes share one scale. We
+instead learn relative quality inside a coherent group G, usually one template.
+Fig. 4. Absolute VLM scores (left) poorly separate real memes from blank images;
+group-wise ranks (right) provide clearer distinctions. Lower rank is better.
+Independent check: 9 annotators, 5 groups, 30 memes. Gemini–human
+agreement: Spearman 0.72; Kendall τ = 0.63.
+Data: 3,345 train / 368 test instances. Teacher: Doubao-1.5-Vision-Pro. Human
+ratings and MaxDiff rankings are separate from constructed training pairs.
+3
+Explore contexts, then ground a path
+Direct caption supervision hides the associations behind a joke. HUMOR builds traces that preserve
+several plausible contexts before grounding one path in a real meme.
+Template interpretation
+Attention shifts from an existing
+commitment to a new attraction.
+MULTI-CONTEXT EXPLORATION
+Technology → a new phone
+Work → a new opportunity
+Daily life → a tempting purchase
+GROUND-TRUTH ANCHOR · TRAINING ONLY
+A real caption supplies the actual context; bind its roles
+to regions and realize the punchline.
+These context branches illustrate the
+reusable relation; they are not scored
+outputs.
+AT INFERENCE
+Template + user intent → hypothesize contexts → select a path → positioned caption. No reference
+caption is used.
+4
+Learn preferences, not global scores
+Training pairs share a template. Five constructed difficulty tiers teach a VLM reward model to distinguish
+disrupted meaning, weak humor and plausible alternatives.
+Wrong text
+unrelated caption
+Wrong location
+misplaced roles
+Boring
+mundane statement
+Detailed boring
+small edits weaken the joke
+Generated
+harder model-written alternatives
+Pairwise probability
+p(i > j | G) = σ[s(i) − s(j)]
+Expected Borda Count
+EBC(i) = Σ p(i > j | G),  j ≠ i
+Binary cross-entropy trains the pairwise comparator. Expected wins induce a group-local preference
+distribution q. The policy learns to favor higher-ranked captions while staying near its CoT reference.
+Policy loss = −E[Σ q log π(c | I)] + β E[KL(π || πref)]
+5
+Generation quality and ablations
+30 native-English raters; 3–5 memes per method per rater. Human scores are means on a 0–5
+scale (↑). All fine-tuned variants use the 7B backbone.
+Model
+Hum.
+Read.
+Rel.
+Orig.
+Dist.
+Qwen2.5-7B
+2.39
+3.35
+2.91
+2.57
+0.564
+Qwen2.5-32B
+2.54
+3.52
+3.09
+2.76
+0.566
+InternVL3-8B
+2.39
+2.79
+3.04
+2.79
+0.564
+GLM-4.1V-9B-Thinking
+1.73
+2.62
+2.75
+2.71
+0.572
+Keye-VL-8B-preview
+2.35
+3.19
+2.99
+2.71
+0.580
+GPT-4o
+2.70
+2.99
+3.21
+2.97
+0.552
+Gemini-2.5-flash
+2.81
+3.29
+3.25
+2.88
+0.561
+HUMOR-CoT
+2.68
+3.70
+3.50
+2.90
+0.590
+CoT: Single Path
+1.87
+2.79
+2.68
+2.45
+0.570
+CoT: Self-Improve
+2.38
+3.68
+3.00
+2.65
+0.578
+CoT: Subquestion
+1.85
+3.32
+2.58
+2.47
+0.597
+HUMOR-RL (preview)
+2.83
+3.67
+3.55
+2.79
+0.588
+Table 1. All 12 models/variants. Dist. = context-swap distance, a diversity proxy. Human/AI discriminability
+is omitted. Bold: column best.
+CoT improves humor 2.39 → 2.68; single-path CoT falls to 1.87. RL reaches 2.83 in preliminary
+results, with lower originality than CoT (2.79 vs. 2.90).
+6
+Does the reward agree with people?
+Kendall τ against human MaxDiff rankings: 100 participants, 5 templates, 10–15 candidates per
+group.
+Reward backbone / state
+G1
+G2
+G3
+G4
+G5
+Qwen2.5-7B · base
+0.16
+0.28
+0.47
+-0.10
+0.29
+Qwen2.5-7B · trained
+0.47
+0.56
+0.42
+0.14
+0.47
+Qwen2.5-32B · base
+0.16
+0.16
+-0.02
+0.14
+0.29
+Qwen2.5-32B · trained
+0.29
+0.47
+0.07
+0.30
+0.42
+Keye-VL-8B · base
+0.05
+0.09
+0.16
+0.29
+0.16
+Keye-VL-8B · trained
+0.78
+0.77
+0.78
+0.78
+0.78
+Table 2. Keye reward training consistently reaches τ ≈ 0.78. Improvements are less consistent
+on Qwen backbones; ranking quality depends on the reward model.
+Pair construction is synthetic/model-assisted; the evaluation uses human rankings.
+7
+What the analysis guarantees
+Exploration
+E[h] ≥ 1 − (1 − α)δ
+If promising paths retain mass α and the remaining quality gap is at most δ, expected normalized humor has this lower bound. More paths
+alone do not establish the assumptions.
+KL stability
+H(π) ≥ H(ref) − √(ΔKL / 2)
+For bounded humor h in [0,1], KL limits possible degradation. Preference consistency additionally assumes a monotone observation
+model; neither result guarantees monotonic gains.
+8
+Generalization to 20 unseen templates
+1
+2
+3
+4
+5
+6
+7
+Caption
+Theme
+Emotion
+Humor
+Punchline
+Cultural
+Context
+Spread
+Gemini group-wise rank ↓
+Human
+HUMOR-CoT
+GLM
+InternVL
+Keye
+Qwen 7B
+Qwen 32B
+Second to human
+memes across all
+eight dimensions.
+Scope: English meme culture; limited human samples; ~2–3× output-token cost; concrete keywords can induce literalism.
+Paper: arxiv.org/abs/2512.24555  |  karroyan13@gmail.com
