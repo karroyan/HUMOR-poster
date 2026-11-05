@@ -1,0 +1,28 @@
+{
+  "source": "Table 5, paper p31",
+  "metric": "VLM reclassification accuracy (%)",
+  "attributes": [
+    "Emotion",
+    "Intention",
+    "Theme",
+    "Style"
+  ],
+  "Qwen2.5-7B": [
+    42.0,
+    51.5,
+    55.1,
+    52.1
+  ],
+  "Qwen2.5-32B": [
+    57.1,
+    61.1,
+    61.6,
+    60.3
+  ],
+  "HUMOR-CoT": [
+    59.7,
+    64.1,
+    60.0,
+    63.9
+  ]
+}

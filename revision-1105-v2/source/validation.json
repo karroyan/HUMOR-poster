@@ -1,0 +1,41 @@
+{
+  "pages": 1,
+  "size_mm": [
+    1400.0,
+    900.0
+  ],
+  "text_overlap": [],
+  "table_data_unchanged": {
+    "table1.json": true,
+    "unseen-figure-data.json": true
+  },
+  "new_experiments_source": "Table5 p31 intent reclassification; Tables6-7 pp33-34 persona pilot",
+  "persona_groups": 20,
+  "persona_semantic_distance": [
+    0.507,
+    0.563
+  ],
+  "judge_wtl": [
+    [
+      14,
+      0,
+      6
+    ],
+    [
+      12,
+      3,
+      5
+    ],
+    [
+      10,
+      9,
+      1
+    ]
+  ],
+  "pdf_render_visually_checked": true,
+  "figma_client_tested": false,
+  "pptx_exported": false,
+  "intent_data_checked": true,
+  "reward_table_restored": true,
+  "persona_location": "\u8865\u5145\u6750\u6599-persona-pilot.md"
+}

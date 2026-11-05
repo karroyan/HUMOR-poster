@@ -1,0 +1,15 @@
+{
+  "source": "/Users/lixy/\u6587\u6863/vault/Parttime/\u8bba\u6587/HUMOR-poster-v2/assets/Meme_NeurIPS_2026.pdf",
+  "page": 40,
+  "figure": 20,
+  "extraction": "Native embedded raster images extracted via pypdf, not rendered screenshot",
+  "assets": {
+    "cloud-template.png": "IM19.jpg",
+    "cloud-human.png": "IM20.jpg",
+    "cloud-humor.png": "IM21.jpg"
+  },
+  "dimensions_px": [
+    275,
+    183
+  ]
+}
