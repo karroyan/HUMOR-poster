@@ -1,0 +1,35 @@
+{
+  "organization_reference": "../revision-v5",
+  "destination": "/xueyingyi/HUMOR-poster/revision-1105",
+  "copied_artifacts": [
+    {
+      "file": "HUMOR-poster-editable.svg",
+      "sha256": "e359dc6a8c47a7684595e92deffc9b14e6e7f7caeb735bbc53d5cf40f10541a7",
+      "byte_identical_to_source": true
+    },
+    {
+      "file": "HUMOR-poster-preview.png",
+      "sha256": "d1cdf845f1b239e3fcdb04a4dcc750a1ce9914d33ad834b2398de44d7dbaeb2d",
+      "byte_identical_to_source": true
+    },
+    {
+      "file": "HUMOR-poster-print.pdf",
+      "sha256": "ae1fcffe9533842028a88b95893a2feabef1b31ad0a11b507aa4ddd43b076b5b",
+      "byte_identical_to_source": true
+    },
+    {
+      "file": "HUMOR-poster-editable.pptx",
+      "sha256": "58a982bd84590b4c3917197f80d1beeee0582180a4f04981ab98beae59a4e09c",
+      "byte_identical_to_source": true
+    }
+  ],
+  "current_scene_image_assets": 12,
+  "current_scene_vector_formula_assets": 8,
+  "html_contains_exact_standalone_svg": true,
+  "local_evidence_verification": "passed, see evidence-validation.json",
+  "rebuild_in_independent_temp_folder": true,
+  "rebuild_exit_code": 0,
+  "rebuild_preview_pixel_identical": true,
+  "source_artwork_retained_without_regeneration": true,
+  "source_output_folder_unchanged": true
+}

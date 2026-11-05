@@ -1,0 +1,149 @@
+{
+  "layout_revision": 6,
+  "paper": "Meme_NeurIPS_2026.pdf",
+  "paper_sha256": "861b7edd837e0270e34de6fa84b2589ac40ca4e95a3236c08fb4fc6651bbf97d",
+  "backup": "../backups/HUMOR_before_v6_20261105T031827Z.zip",
+  "boring": {
+    "source": "source/pairwise_source.pdf",
+    "object": 52,
+    "figure": "Fig.9",
+    "position": "boring column, cat example",
+    "output": "assets/pair-boring.png"
+  },
+  "christmas": {
+    "source": "source/figure16_source.png",
+    "figure": "Fig.16 row 1",
+    "input_tags": [
+      "love",
+      "humor",
+      "Christmas",
+      "family tradition",
+      "delayed excitement"
+    ],
+    "source_spelling_note": "Chrismas normalized to Christmas in theme label",
+    "crops": {
+      "christmas-reference": [
+        523,
+        304,
+        905,
+        686
+      ],
+      "christmas-humor": [
+        924,
+        304,
+        1303,
+        686
+      ],
+      "christmas-single": [
+        1324,
+        304,
+        1703,
+        686
+      ]
+    }
+  },
+  "figure5": {
+    "source": "source/unseen_source.pdf",
+    "values": "source/unseen-figure-data.json",
+    "values_unchanged": 56,
+    "axis_mm": [
+      340,
+      66
+    ],
+    "frame_mm": [
+      520,
+      149
+    ],
+    "colors": 7,
+    "line_styles": 1,
+    "cards_04_06_aligned": true
+  },
+  "formula_sources": [
+    "§3.1 anchor and conditional lower bound",
+    "§3.2 preference probability/BCE; Appendix E EBC",
+    "§3.3 preference-weighted policy loss, expected KL, bounded degradation"
+  ],
+  "speaking_guide": "公式与现场讲解_v4.md",
+  "assets": {
+    "pair-wrong-text.png": "0bc43a809b83e1715dbc087405762beb31950e64d08800df3968018f43be4f90",
+    "work-humor.png": "7b73b2cb3e4334dccc059541ee5e9ce020632b6f71842367be94b2ca171c8a0a",
+    "work-template-detail.png": "b0f4eeadc7aa1aff9b06665a5e3b81bf9fad72f07d5d1d76a00acc2134de6a44",
+    "apple-fans.png": "8cfa9f3570bc3be679da25be67644a15b43481105bf5acfe9602a272cfb346e2",
+    "pair-original.png": "1bd653cb3f4de862ae572d43a52b187e6866ebcc3383b9228510e5d950126782",
+    "work-single.png": "37ec6d778898f2fefd4423b7abe1ba18d8016183b9905543f07b92b77014ac4f",
+    "work-self.png": "ff8117e217e1ea7d9165de278bdbb6177791148977368e343ae392f48ca12ea6",
+    "pair-boring.png": "4a1df7fea6e97b693b13510408ca4afddb2b2c4359aa5bef339d41ff4cc37255",
+    "christmas-single.png": "0b78f1e4aebd6ceccdcedd686bb37cbe250c5bee46d291b7990dd0cbfa684030",
+    "template.png": "5b6ee01e4c7fc6d9ddf649b2f568dc0c6d3b1f99ec30f080d9f585cf9ca537bc",
+    "bean-template.png": "957d6e952bdb16030f4cb9a0e581713394e0bffc1204298e43c7d61cf972073a",
+    "work-subquestion.png": "e5255176535f605e54256c0c2e52208dc4ced9930fff5bd8d467a539eb81262f",
+    "bean-gold.png": "ee848fedb143048f0387208c5f4bbcce431146281987f1a2481939094029601a",
+    "christmas-humor.png": "567cf52037039b243deb3ce6d483e82176206c8f1e9cb435ad9ddba49ab521b2",
+    "work-reference.png": "c4a06c97601fc42ccbfe565c1f510e784d86b42f2213d1dd96f483a3795016fc",
+    "christmas-reference.png": "f2ff78da651c611048061b6bd022bd066a419040a081a9caf3a23642b2e42e71"
+  },
+  "stage_A_style_reference": "/xueyingyi/HUMOR-poster/revision-v5/HUMOR-poster-editable.svg",
+  "stage_A_emphasis": "blue gold-compatible scenario, gold reverse-anchor panel and upward arrow, blue inference strip; good-path formula retained",
+  "stage_C_emphasis": "three equal workflow rows",
+  "five_pair_types_on_poster": [
+    "wrong text",
+    "wrong location",
+    "boring",
+    "detailed boring",
+    "generated memes"
+  ],
+  "romance": {
+    "source": "source/figure16_source.png",
+    "figure": "Fig.16 row 2",
+    "crops": {
+      "romance-reference": [
+        523,
+        713,
+        905,
+        1095
+      ],
+      "romance-humor": [
+        922,
+        713,
+        1305,
+        1095
+      ],
+      "romance-single": [
+        1322,
+        713,
+        1703,
+        1095
+      ]
+    },
+    "input_tags": [
+      "happiness",
+      "humor",
+      "romance",
+      "crush",
+      "dabbing",
+      "rare moment"
+    ],
+    "spelling_note": "Source happines normalized to happiness in the poster label"
+  },
+  "gallery": {
+    "size_mm": [
+      520,
+      248
+    ],
+    "image_width_mm": 89,
+    "theme_rows": [
+      "Christmas",
+      "Romance"
+    ],
+    "columns": [
+      "Human reference",
+      "Single-path CoT",
+      "HUMOR-CoT"
+    ]
+  },
+  "A_full_branches": [
+    "A confusing work problem → bewildered reaction",
+    "A bad joke → exaggerated \"painful\" response",
+    "Social ignorance → refusing to listen"
+  ]
+}

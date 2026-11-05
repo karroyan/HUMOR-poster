@@ -1,0 +1,12 @@
+{
+  "canvas_mm": [
+    1400,
+    900
+  ],
+  "text_and_math_count": 394,
+  "containment_issues": [],
+  "text_overlaps": [],
+  "unintended_text_image_intersections": [],
+  "formula_vector_overflow": [],
+  "browser_layout_check": "Browser runtime not installed; HTML embeds the exact measured SVG scene and fonts used for the preview."
+}

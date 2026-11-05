@@ -1,0 +1,288 @@
+From Perception to Punchline:
+Empowering VLM with the Art of In-the-wild Memes
+Xueyan Li
+*1
+Yingyi Xue
+*1,2
+Mengjie Jiang
+3
+Qingzi Zhu
+1
+Yazhe Niu
+†4
+[1] Shanghai AI Laboratory   [2] Fudan University   [3] Columbia Engineering, Columbia University   [4] CUHK MMLab
+HUMOR
+NeurIPS 2026
+Hierarchical Understanding and Meme Optimization
+01  What makes a caption a meme?
+Same visual relation, different
+context-specific punchlines.
+Template
+Meme
+USER INPUT
+Technology · “Apple fanatic”
+A · Subject
+APPLE FANS
+B · New focus
+IPHONE 11
+C · Neglected
+IPHONE 10
+Why rank within a group?
+Single-image scores barely separate quality.
+In-group ranks make differences easier to
+compare.
+02  HUMOR: hierarchical reasoning → local preferences → stable optimization
+A
+Hierarchical CoT
+B
+Template-local reward
+C
+Group-wise optimization
+Template intent → diverse contextual groundings.
+1  MULTI-SCENARIO ASSOCIATION
+A confusing work problem → bewildered reaction
+A bad joke → exaggerated "painful" response
+Social ignorance → refusing to listen
+Trace back to the compatible scene
+2  REVERSE-ANCHOR FROM A REAL MEME
+Gold c → infer U: socializing / ignorance.
+Trace back; retain other associations.
+$\tilde r=\arg\max_r P_\phi(c\mid r,I,U)$
+$\mathbb{E}_{r\sim P_\theta}[\tilde h_G(r)]\geq 1-(1-\alpha)\delta$
+Good-path mass α > 0; mean humor gap ≤ δ.
+INFERENCE  Explore/select; no gold caption.
+Compare within a template; learn a group ranking.
+Training pairs span five types: wrong text, wrong location,
+boring, detailed boring, and generated memes.
+Original
+Boring
+≻
+Preference
+$p_{ij}^G=\sigma[s_\phi(m_i)-s_\phi(m_j)]$
+BCE loss
+$\ell=-y\log p-(1-y)\log(1-p)$
+Expected wins
+$\mathrm{EBC}_G(i)=\sum_{j\ne i}p_{ij}^G$
+1  Estimate preferences inside template G.
+2  Sum wins; normalize sparse comparisons.
+3  Rank candidates → local policy targets.
+Use the group ranking as the policy target. Stay close to
+the CoT reference during optimization.
+1  Sample captions from the CoT policy
+2  Pairwise reward → EBC → local targets
+3  Update policy; keep CoT as reference
+$\mathcal{L}=-\mathbb{E}[\sum_k q_G(m_k)\log\pi_\theta(c_k\mid I)]+\beta\Delta_{\mathrm{KL}}$
+$\Delta_{\mathrm{KL}}=\mathbb{E}_I[\mathrm{KL}(\pi_\theta\Vert\pi_{\mathrm{CoT}})]$
+$H(\pi_\theta)\geq H(\pi_{\mathrm{CoT}})-\sqrt{\Delta_{\mathrm{KL}}/2}$
+For h ∈ [0,1], KL bounds possible degradation. It does not
+guarantee improvement.
+03  Does HUMOR improve meme quality and diversity?
+Model / variant
+Hum. ↑
+Read. ↑
+Rel. ↑
+Orig. ↑
+Sim. ↑
+Dist. ↑
+Human % ↑
+Qwen2.5-7B
+2.39
+3.35
+2.91
+2.57
+0.576
+0.564
+75.7
+Qwen2.5-32B
+2.54
+3.52
+3.09
+2.76
+0.564
+0.566
+82.2
+InternVL3-8B
+2.39
+2.79
+3.04
+2.79
+0.545
+0.564
+62.7
+GLM-4.1V-9B-Thinking
+1.73
+2.62
+2.75
+2.71
+0.602
+0.572
+45.1
+Keye-VL-8B-preview
+2.35
+3.19
+2.99
+2.71
+0.585
+0.580
+69.0
+GPT-4o
+2.70
+2.99
+3.21
+2.97
+0.603
+0.552
+91.3
+Gemini-2.5-flash
+2.81
+3.29
+3.25
+2.88
+0.600
+0.561
+—
+HUMOR-CoT
+2.68
+3.70
+3.50
+2.90
+0.640
+0.590
+91.5
+CoT: Single Path
+1.87
+2.79
+2.68
+2.45
+0.637
+0.570
+86.0
+CoT: Self-Improve
+2.38
+3.68
+3.00
+2.65
+0.629
+0.578
+89.1
+CoT: Subquestion
+1.85
+3.32
+2.58
+2.47
+0.639
+0.597
+87.2
+HUMOR-RL (preview)
+2.83
+3.67
+3.55
+2.79
+0.631
+0.588
+92.3
+CoT vs. 7B base
+Humor
++0.29
+Readability
++0.35
+Relevance
++0.59
+Originality
++0.33
+Similarity
++0.064
+Context swap
++0.026
+Human Rate
++15.8 pp
+RL preview: 2.83 humor
+Orig. 2.90 → 2.79
+Human scores: 30 Prolific raters, 0–5. Human Rate: Gemini-2.5-pro.
+Sim.: bge-base-en-v1.5. Dist.: context-swapped generations. Bold = best.
+05  Does the reward recover human preference rankings?
+Reward backbone / state
+G1 · τ ↑
+G2 · τ ↑
+G3 · τ ↑
+G4 · τ ↑
+G5 · τ ↑
+Qwen2.5-VL-7B · base
+0.16
+0.28
+0.47
+-0.10
+0.29
+Qwen2.5-VL-7B · trained
+0.47
+0.56*
+0.42
+0.14
+0.47
+Qwen2.5-VL-32B · base
+0.16
+0.16
+-0.02
+0.14
+0.29
+Qwen2.5-VL-32B · trained
+0.29
+0.47*
+0.07
+0.30
+0.42
+Keye-VL-8B · base
+0.05
+0.09
+0.16
+0.29
+0.16
+Keye-VL-8B · trained
+0.78***
+0.77***
+0.78***
+0.78***
+0.78***
+Human MaxDiff ranks vs. model pairwise +
+EBC ranks.
+Keye aligns best; Qwen gains are mixed or
+limited.
+100 MaxDiff raters · 5 templates · *p<.05, ***p<.001
+04  Meme generation across themes
+Human reference
+Single-path CoT
+HUMOR-CoT
+Christmas
+Love · humor
+Family tradition
+Delayed excitement
+Romance
+Happiness · humor
+Crush · dabbing
+Rare moment
+06  Does HUMOR generalize to unseen templates?
+1
+2
+3
+4
+5
+6
+7
+Caption
+Theme
+Emotion
+Humor
+Punchline
+Cultural
+Context
+Spread
+Human
+HUMOR-CoT
+Qwen 32B
+Keye
+InternVL
+Qwen 7B
+GLM
+20 unseen templates · Gemini-2.5-pro mean rank ↓
+HUMOR · NeurIPS 2026
+yingyixue7@gmail.com

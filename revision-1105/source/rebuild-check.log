@@ -1,0 +1,24 @@
+{
+  "canvas_mm": [
+    1400,
+    900
+  ],
+  "new_layout": true,
+  "text_count": 288,
+  "word_count": 644,
+  "containment_issues": [],
+  "formula_overflow": []
+}
+{
+  "output": "/tmp/humor1105-render-_6zmolf3/revision-1105/HUMOR-poster-editable.pptx",
+  "size_cm": [
+    140,
+    90
+  ],
+  "native_shapes": 491,
+  "editable_text_shapes": 280,
+  "vector_formulas": 8,
+  "xml_parts_valid": true
+}
+Built /tmp/humor1105-render-_6zmolf3/revision-1105/HUMOR-poster.html
+

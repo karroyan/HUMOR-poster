@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HUMOR NeurIPS 2026 Poster</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%231a6b5a'>H</text></svg>">
+<style>
+  @page { size: 2400px 1600px; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #fff;
+    color: #222;
+    width: 2400px;
+    margin: 0 auto;
+    padding: 0;
+  }
+  .poster {
+    width: 2400px;
+    padding: 28px 36px 16px;
+    background: #fff;
+  }
+
+  /* ===== HEADER ===== */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 4px solid #1a6b5a;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+  }
+  .header-left h1 {
+    font-size: 42px;
+    font-weight: 800;
+    color: #1a3a4a;
+    line-height: 1.12;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+  .header-left .authors {
+    font-size: 18px;
+    color: #333;
+    margin-bottom: 3px;
+  }
+  .header-left .affil {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+  }
+  .header-right {
+    text-align: right;
+    flex-shrink: 0;
+    padding-left: 30px;
+  }
+  .header-right .logo {
+    font-size: 48px;
+    font-weight: 900;
+    color: #1a6b5a;
+    letter-spacing: 2px;
+    line-height: 1;
+  }
+  .header-right .subtitle {
+    font-size: 14px;
+    color: #555;
+    margin-top: 5px;
+    max-width: 260px;
+    line-height: 1.3;
+  }
+  .header-right .venue {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a3a4a;
+    margin-top: 6px;
+  }
+
+  /* ===== GRID ===== */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1.05fr 1fr;
+    gap: 16px;
+  }
+
+  /* ===== SECTIONS ===== */
+  .section {
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .sec-problem { background: #eef6f3; }
+  .sec-method  { background: #f0f4fa; }
+  .sec-exp     { background: #fdf6ec; }
+
+  .section h2 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #1a3a4a;
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #1a6b5a;
+  }
+  .sec-method h2 { border-bottom-color: #2c5aa0; }
+  .sec-exp h2 { border-bottom-color: #d4820a; }
+
+  .section h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a6b5a;
+    margin: 9px 0 4px;
+  }
+  .sec-method h3 { color: #2c5aa0; }
+  .sec-exp h3 { color: #b06a0a; }
+
+  .section p {
+    font-size: 13.5px;
+    line-height: 1.48;
+    margin-bottom: 5px;
+    color: #333;
+  }
+  .section .small {
+    font-size: 12px;
+    line-height: 1.42;
+    color: #555;
+  }
+
+  /* ===== EXAMPLE BOX ===== */
+  .example-box {
+    background: #fff;
+    border: 1.5px solid #b8d4c8;
+    border-radius: 5px;
+    padding: 8px 10px;
+    margin: 6px 0;
+  }
+  .example-box .ex-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #1a6b5a;
+    margin-bottom: 3px;
+  }
+  .example-box .ex-body {
+    font-size: 12px;
+    line-height: 1.42;
+    color: #333;
+  }
+  .example-box .ex-body strong { color: #1a3a4a; }
+
+  /* ===== FIGURE ===== */
+  .fig { margin: 6px 0; text-align: center; }
+  .fig img {
+    max-width: 100%;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+  }
+  .fig .caption {
+    font-size: 11px;
+    color: #666;
+    margin-top: 3px;
+    line-height: 1.32;
+  }
+
+  /* ===== HIGHLIGHT ===== */
+  .highlight-row {
+    background: #fff3cd;
+    border-left: 4px solid #d4820a;
+    padding: 5px 9px;
+    margin: 5px 0;
+    font-size: 12.5px;
+    border-radius: 0 4px 4px 0;
+    line-height: 1.4;
+  }
+  .highlight-row strong { color: #b06a0a; }
+
+  /* ===== TABLE ===== */
+  table.results {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin: 5px 0;
+  }
+  table.results th {
+    background: #1a3a4a;
+    color: #fff;
+    padding: 3px 5px;
+    text-align: center;
+    font-weight: 600;
+  }
+  table.results td {
+    padding: 2px 5px;
+    text-align: center;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  table.results tr.dim td { color: #888; }
+  .table-note {
+    font-size: 10px;
+    color: #777;
+    line-height: 1.25;
+    margin-top: 2px;
+  }
+
+  /* ===== FORMULA ===== */
+  .formula {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 5px 8px;
+    margin: 5px 0;
+    text-align: center;
+    font-family: Georgia, serif;
+    font-style: italic;
+    font-size: 13px;
+    color: #1a3a4a;
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 2px solid #ccc;
+    margin-top: 8px;
+    padding-top: 6px;
+    font-size: 11.5px;
+    color: #888;
+  }
+
+  /* ===== POSITION MAP ===== */
+  .pos-map { display: flex; gap: 6px; margin: 5px 0; }
+  .pos-item {
+    flex: 1;
+    background: #fff;
+    border: 1.5px solid #b8d4c8;
+    border-radius: 4px;
+    padding: 5px 6px;
+    text-align: center;
+  }
+  .pos-item .pos-label { font-size: 10px; font-weight: 700; color: #1a6b5a; }
+  .pos-item .pos-val { font-size: 12px; font-weight: 800; color: #1a3a4a; margin-top: 1px; }
+
+  .tag {
+    display: inline-block;
+    background: #1a6b5a;
+    color: #fff;
+    font-size: 9.5px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 2px;
+    font-weight: 600;
+  }
+  .tag.blue { background: #2c5aa0; }
+
+  /* ===== OBSERVATION BOX ===== */
+  .obs-box {
+    background: #fff;
+    border-left: 4px solid #1a6b5a;
+    padding: 6px 10px;
+    margin: 6px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .obs-box strong { color: #1a6b5a; }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header">
+    <div class="header-left">
+      <h1>From Perception to Punchline:<br>Empowering VLM with the Art of In-the-wild Memes</h1>
+      <div class="authors">Xueyan Li [1] &nbsp;&nbsp; Yingyi Xue [1,2] &nbsp;&nbsp; Mengjie Jiang [3] &nbsp;&nbsp; Qingzi Zhu [1] &nbsp;&nbsp; Yazhe Niu [4]</div>
+      <div class="affil">[1] Shanghai AI Laboratory &nbsp;&nbsp; [2] Fudan University &nbsp;&nbsp; [3] Columbia University &nbsp;&nbsp; [4] CUHK MMLab</div>
+    </div>
+    <div class="header-right">
+      <div class="logo">HUMOR</div>
+      <div class="subtitle">Hierarchical Understanding and Meme Optimization</div>
+      <div class="venue">NeurIPS 2026</div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ========== LEFT: PROBLEM ========== -->
+    <div class="col">
+      <div class="section sec-problem">
+        <h2>1 &nbsp;What Makes a Caption a Meme?</h2>
+
+        <p><strong>Meme generation is not image captioning.</strong> A meme = a <em>fixed template</em> encoding a relational schema + <em>context-specific text</em> filled into designated positions. The same visual template affords dramatically different punchlines depending on the inferred scenario.</p>
+
+        <h3>Case: The "Distracted Boyfriend" template</h3>
+        <p class="small">Humans first parse the template's relational core: <strong>A</strong> (attention-shifting subject) is drawn to <strong>B</strong> (newly focused entity), neglecting <strong>C</strong> (the old object of attachment). This abstract schema maps onto any context expressing "infatuation with the new and abandonment of the old."</p>
+
+        <div class="example-box">
+          <div class="ex-title">Technology theme + keyword "Apple fanatic"</div>
+          <div class="ex-body">Align the infatuation-with-new schema to product updates: the man ↔ Apple fans, the other woman ↔ iPhone 11, the girlfriend ↔ iPhone 10.</div>
+          <div class="pos-map" style="margin-top:5px;">
+            <div class="pos-item"><div class="pos-label">A</div><div class="pos-val">APPLE FANS</div></div>
+            <div class="pos-item"><div class="pos-label">B</div><div class="pos-val">IPHONE 11</div></div>
+            <div class="pos-item"><div class="pos-label">C</div><div class="pos-val">IPHONE 10</div></div>
+          </div>
+          <div class="ex-body" style="text-align:center; font-style:italic; margin-top:3px;">→ humorously expressing enthusiasm for Apple's new products.</div>
+        </div>
+
+        <div class="example-box" style="border-color:#d4c5a0; background:#fefcf7;">
+          <div class="ex-title" style="color:#b06a0a;">Same template, other contexts</div>
+          <div class="ex-body">
+            • <strong>Workplace:</strong> a leader attracted to a new hire — "new vs. old" office politics.<br>
+            • <strong>Daily life:</strong> resisting a tempting purchase / an unhealthy habit.
+          </div>
+        </div>
+
+        <div class="fig">
+          <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Aonvbtw4eoSG2Gxeaahc4iVlnXf" alt="Direct vs Hierarchical CoT">
+          <div class="caption"><strong>Direct generation</strong> jumps from pixels to a single caption — no layered abstraction, no genuine discovery. <strong>HUMOR-CoT</strong> first parses the template's metaphorical schema, then grounds it in the user's context.</div>
+        </div>
+
+        <h3>Why we compare within a template</h3>
+        <p class="small">A global "funniness score" assumes unrelated jokes share one scale. We instead learn <strong>relative</strong> quality inside a coherent group <em>G</em> (usually one template), where human judgments are reliable.</p>
+
+        <div class="obs-box">
+          <strong>Key observation:</strong> Absolute VLM scores barely separate real memes from blank images; <strong>group-wise ranks</strong> provide clearer distinctions. Independent check: 9 annotators, 5 groups, 30 memes. Gemini–human agreement: Spearman 0.72; Kendall τ = 0.63.
+        </div>
+
+        <div class="highlight-row">
+          <strong>Why this task matters:</strong> Direct caption supervision collapses diverse reasoning paths into one shallow output. We need to <em>explore multiple plausible contexts</em>, anchor to a high-quality path, and optimize toward human preference — an open-ended, group-wise reasoning problem.
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== MIDDLE: METHOD ========== -->
+    <div class="col">
+      <div class="section sec-method">
+        <h2>2 &nbsp;HUMOR: Hierarchical Understanding &amp; Meme Optimization</h2>
+
+        <div class="fig" style="margin-bottom:4px;">
+          <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/J9TDbtjbjoY0xTxfWuKcK1j1n9d" alt="Framework overview" style="max-width:88%;">
+          <div class="caption">HUMOR = multi-path hierarchical CoT + group-wise pairwise reward + KL-controlled GRPO.</div>
+        </div>
+
+        <h3>2.1 &nbsp;Hierarchical Chain-of-Thought</h3>
+        <p><span class="tag">Stage 1</span><strong> Template-level intent:</strong> parse visual elements, then explore multiple plausible contexts (emotions, intents, scenarios) — like brainstorming several possible jokes.</p>
+        <p><span class="tag">Stage 2</span><strong> Context-specific grounding:</strong> anchor one path to the real meme's actual user context. At inference, rank Stage-1 paths by the reward model.</p>
+
+        <div class="fig">
+          <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/J0qdbYDWLowUgHxwDwjcyWQrn1g" alt="CoT dataflow" style="max-width:90%;">
+          <div class="caption">Stage 1 expands reasoning breadth; Stage 2 anchors a canonical path from real captions.</div>
+        </div>
+
+        <div class="formula">
+          E<sub>r~P<sub>θ</sub></sub>[h̃<sub>G</sub>(r)] &nbsp;≥&nbsp; 1 − (1 − α)δ
+        </div>
+        <p class="small" style="text-align:center; margin-bottom:4px;">Promising paths retain probability mass α; others are at most moderately worse (δ). Exploration + anchoring preserves a <strong>conditional humor lower bound</strong>.</p>
+
+        <h3>2.2 &nbsp;Pairwise Reward Modeling</h3>
+        <p>Humor has no global scale — we adopt an <strong>order-consistent</strong> within-group reward: trained only on relative judgments (m<sub>i</sub> &gt; m<sub>j</sub>) among memes sharing the same template.</p>
+
+        <div class="fig">
+          <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/ArCTbAvK9oQHjzxwuNTcYGBYn3e" alt="Difficulty tiers" style="max-width:92%;">
+          <div class="caption">Five difficulty tiers: Wrong text → Wrong location → Boring → Detailed boring → Generated. EBC aggregates sparse pairs into a stable group ranking.</div>
+        </div>
+
+        <h3>2.3 &nbsp;Group-wise Policy Optimization (GRPO)</h3>
+        <p>Fine-tune toward higher-ranked captions within each template group, with a <strong>corrected KL</strong> term bounding deviation.</p>
+
+        <div class="formula">
+          L<sub>GRPO</sub> = E<sub>(I,G)</sub>[− Σ q<sub>G</sub>(m<sub>k</sub>) log π<sub>θ</sub>(c<sub>k</sub>|I) + β E<sub>I</sub>[KL(π<sub>θ</sub> ‖ π<sub>ref</sub>)]]
+        </div>
+
+        <div class="fig">
+          <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/IzK3bE3Cuo0gBWxL5Tpc9YtvnSd" alt="Training pipeline" style="max-width:88%;">
+          <div class="caption">Pipeline: multi-path CoT SFT → pairwise reward model (EBC) → group-wise GRPO.</div>
+        </div>
+
+        <div class="highlight-row" style="background:#e8eef8; border-left-color:#2c5aa0;">
+          <strong style="color:#2c5aa0;">Theoretical guarantee:</strong> if KL ≤ τ, expected humor cannot drop by more than √(τ/2). Rank-consistent reward + KL control = bounded, stable improvement.
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== RIGHT: EXPERIMENTS ========== -->
+    <div class="col">
+      <div class="section sec-exp">
+        <h2>3 &nbsp;Experiments</h2>
+
+        <h3>3.1 &nbsp;Main Results</h3>
+        <p class="small">30 native English raters; 3–5 memes/method/rater; 0–5 scale. All 7B variants use Qwen2.5-7B.</p>
+
+        <table class="results">
+          <thead>
+            <tr>
+              <th style="width:32%;">Model</th>
+              <th>Hum.</th><th>Read.</th><th>Rel.</th><th>Orig.</th><th>Dist.</th><th>Human<br>Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="dim"><td>Qwen2.5-7B</td><td>2.39</td><td>3.35</td><td>2.91</td><td>2.57</td><td>0.564</td><td>75.7%</td></tr>
+            <tr class="dim"><td>Qwen2.5-32B</td><td>2.54</td><td>3.52</td><td>3.09</td><td>2.76</td><td>0.566</td><td>—</td></tr>
+            <tr class="dim"><td>InternVL3-8B</td><td>2.39</td><td>2.79</td><td>3.04</td><td>2.79</td><td>0.564</td><td>62.7%</td></tr>
+            <tr class="dim"><td>GLM-4.1V-9B-Thinking</td><td>1.73</td><td>2.62</td><td>2.75</td><td>2.71</td><td>0.572</td><td>45.1%</td></tr>
+            <tr class="dim"><td>Keye-VL-8B-preview</td><td>2.35</td><td>3.19</td><td>2.99</td><td>2.71</td><td>0.580</td><td>69.0%</td></tr>
+            <tr class="dim"><td>GPT-4o</td><td>2.70</td><td>2.99</td><td>3.21</td><td><strong>2.97</strong></td><td>0.552</td><td>91.3%</td></tr>
+            <tr class="dim"><td>Gemini-2.5-flash</td><td>2.81</td><td>3.29</td><td>3.25</td><td>2.88</td><td>0.561</td><td>—</td></tr>
+            <tr style="background:#e8eef8; font-weight:700;"><td>HUMOR-CoT</td><td>2.68</td><td>3.70</td><td>3.50</td><td>2.90</td><td>0.590</td><td>91.2%</td></tr>
+            <tr class="dim"><td>&nbsp;&nbsp;CoT: Single Path</td><td>1.87</td><td>2.79</td><td>2.68</td><td>2.45</td><td>0.570</td><td>86.0%</td></tr>
+            <tr class="dim"><td>&nbsp;&nbsp;CoT: Self-Improve</td><td>2.38</td><td>3.68</td><td>3.00</td><td>2.65</td><td>0.578</td><td>—</td></tr>
+            <tr class="dim"><td>&nbsp;&nbsp;CoT: Subquestion</td><td>1.85</td><td>3.22</td><td>2.58</td><td>2.47</td><td>0.597</td><td>—</td></tr>
+            <tr style="background:#fff3cd; font-weight:700; color:#b06a0a;"><td>HUMOR-RL (preview)</td><td>2.83</td><td>3.67</td><td>3.55</td><td>2.79</td><td>0.588</td><td>92.3%</td></tr>
+          </tbody>
+        </table>
+        <div class="table-note">Dist. = context-swap distance (diversity proxy); Human/AI discriminability by Gemini-2.5-pro.</div>
+
+        <div class="highlight-row">
+          <strong>Key wins:</strong> Humor <strong>2.39→2.68</strong> (+12%); Readability <strong>3.70</strong> beats all closed-source; Human Rate <strong>91.2%</strong> ≈ GPT-4o (91.3%); context-swap distance <strong>0.590</strong> (vs 0.564) = better generalization.
+        </div>
+
+        <h3>3.2 &nbsp;Reward Model Agreement with People</h3>
+        <table class="results" style="font-size:10.5px;">
+          <thead>
+            <tr><th>Backbone / state</th><th>G1</th><th>G2</th><th>G3</th><th>G4</th><th>G5</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Qwen2.5-7B · base</td><td>0.16</td><td>0.28</td><td>0.47</td><td>-0.10</td><td>0.29</td></tr>
+            <tr><td>Qwen2.5-7B · trained</td><td>0.47</td><td>0.56</td><td>0.42</td><td>0.14</td><td>0.47</td></tr>
+            <tr><td>Qwen2.5-32B · base</td><td>0.16</td><td>0.16</td><td>-0.02</td><td>0.14</td><td>0.29</td></tr>
+            <tr><td>Qwen2.5-32B · trained</td><td>0.29</td><td>0.47</td><td>0.07</td><td>0.30</td><td>0.42</td></tr>
+            <tr style="background:#fff3cd; font-weight:700; color:#b06a0a;"><td>Keye-VL-8B · trained</td><td>0.78</td><td>0.77</td><td>0.78</td><td>0.78</td><td>0.78</td></tr>
+          </tbody>
+        </table>
+        <p class="small">Keye-VL-8B trained reward consistently reaches τ ≈ <strong>0.78</strong> across all five templates. Improvements are consistent on Qwen backbones.</p>
+
+        <h3>3.3 &nbsp;Generalization to Unseen Templates</h3>
+        <div class="fig">
+          <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/OYKWb7LaPoymyWxfCIQcwvkHnHX" alt="Ranking on unseen templates" style="max-width:80%;">
+          <div class="caption">20 unseen templates, no overlap. HUMOR-CoT ranks second only to human memes across all eight dimensions.</div>
+        </div>
+
+        <h3>3.4 &nbsp;Qualitative: Single-path vs Multi-path</h3>
+        <div class="fig">
+          <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/HUBUbNnm1oeRYfxkYQZcpINTn0c" alt="Mr Bean case study" style="max-width:98%;">
+          <div class="caption">Same Mr. Bean template. Single-path yields literal, generic text; HUMOR-CoT deeply combines the character's expression with the user's intent for a contextual punchline.</div>
+        </div>
+
+        <div class="fig" style="margin-top:4px;">
+          <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/SKj6btcVFoUtcuxYqGUcx0lenTb" alt="Unseen template generation" style="max-width:92%;">
+          <div class="caption">Unseen template generation on templates absent from training.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== FOOTER ===== -->
+  <div class="footer">
+    <span>Scope: English meme culture; limited human samples; ~2–3× output-token cost; concrete keywords can induce literalism.</span>
+    <span>Paper: arxiv.org/abs/2512.24555 &nbsp;|&nbsp; karroyan13@gmail.com</span>
+  </div>
+
+</div>
+</body>
+</html>

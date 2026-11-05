@@ -1,0 +1,98 @@
+{
+  "paper": "/xueyingyi/HUMOR-poster/assets/Meme_NeurIPS_2026.pdf",
+  "table1_values_checked": 60,
+  "table2_tau_values_checked": 30,
+  "figure5_vector_values_checked": 56,
+  "figure5_values": {
+    "Human": [
+      1.2,
+      2.2,
+      1.2,
+      1.4,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "HUMOR-CoT": [
+      2.8,
+      2.4,
+      2.6,
+      3.6,
+      3.4,
+      2.4,
+      2.4,
+      2.8
+    ],
+    "GLM": [
+      6.0,
+      6.2,
+      6.4,
+      5.8,
+      5.6,
+      6.0,
+      5.8,
+      6.0
+    ],
+    "InternVL": [
+      4.4,
+      4.0,
+      4.4,
+      4.6,
+      4.8,
+      5.0,
+      5.0,
+      4.8
+    ],
+    "Keye": [
+      4.2,
+      4.4,
+      4.0,
+      4.4,
+      4.2,
+      3.8,
+      4.0,
+      4.4
+    ],
+    "Qwen 7B": [
+      5.2,
+      4.6,
+      5.2,
+      4.2,
+      4.8,
+      5.6,
+      5.6,
+      5.0
+    ],
+    "Qwen 32B": [
+      4.2,
+      4.2,
+      4.2,
+      4.0,
+      4.2,
+      4.2,
+      4.2,
+      4.0
+    ]
+  },
+  "pdf_pages": 1,
+  "pdf_size_mm": [
+    1400.000000000009,
+    899.9999999999983
+  ],
+  "pdf_embedded_fonts": [
+    "/EVICAO+DejaVuSans-Bold",
+    "/GCWXDV+DejaVuSans-Oblique",
+    "/BMQQDV+DejaVuSans",
+    "/EGWXSV+DejaVuSansDisplay",
+    "/EUPODS+STIXNonUnicode-Italic",
+    "/JYHTGI+STIXSizeOneSym-Regular"
+  ],
+  "pdf_image_count": 10,
+  "image_aspect_ratios": "preserved",
+  "svg_xml": "valid",
+  "text_bounds": "pass",
+  "text_intersections": "none",
+  "figma_client_test": "not performed",
+  "statistics": "descriptive means; no invented CIs or significance tests"
+}

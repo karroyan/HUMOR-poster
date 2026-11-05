@@ -1,0 +1,1 @@
+const sheet=document.getElementById('sheet');let w=1400;function fit(){w=Math.max(360,window.innerWidth-48);sheet.style.width=w+'px'}function zoom(s){w=Math.max(360,w*s);sheet.style.width=w+'px'}fit();window.addEventListener('resize',fit);window.posterInfo={version:5,widthMM:1400,heightMM:900,embeddedFonts:true};

@@ -1,0 +1,33 @@
+{
+  "source": "source/figure16_source.png",
+  "figure": "Fig.16 row 2",
+  "crops": {
+    "romance-reference": [
+      523,
+      713,
+      905,
+      1095
+    ],
+    "romance-humor": [
+      922,
+      713,
+      1305,
+      1095
+    ],
+    "romance-single": [
+      1322,
+      713,
+      1703,
+      1095
+    ]
+  },
+  "input_tags": [
+    "happiness",
+    "humor",
+    "romance",
+    "crush",
+    "dabbing",
+    "rare moment"
+  ],
+  "spelling_note": "Source happines normalized to happiness in the poster label"
+}

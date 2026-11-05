@@ -1,0 +1,12 @@
+{
+  "html_svg_matches_standalone": true,
+  "unique_svg_ids": 18,
+  "external_resources": [],
+  "embedded_font_faces": 3,
+  "viewer_controls": 4,
+  "svg_xml": "valid",
+  "formula_box_overflow": "none",
+  "section_overflow": "none",
+  "browser_runtime_test": "not available; no browser screenshot or print claims",
+  "js_syntax_check": "performed separately with Node"
+}

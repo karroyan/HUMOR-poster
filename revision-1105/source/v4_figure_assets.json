@@ -1,0 +1,41 @@
+{
+  "boring": {
+    "source": "source/pairwise_source.pdf",
+    "object": 52,
+    "figure": "Fig.9",
+    "position": "boring column, cat example",
+    "output": "assets/pair-boring.png"
+  },
+  "christmas": {
+    "source": "source/figure16_source.png",
+    "figure": "Fig.16 row 1",
+    "input_tags": [
+      "love",
+      "humor",
+      "Christmas",
+      "family tradition",
+      "delayed excitement"
+    ],
+    "source_spelling_note": "Chrismas normalized to Christmas in theme label",
+    "crops": {
+      "christmas-reference": [
+        523,
+        304,
+        905,
+        686
+      ],
+      "christmas-humor": [
+        924,
+        304,
+        1303,
+        686
+      ],
+      "christmas-single": [
+        1324,
+        304,
+        1703,
+        686
+      ]
+    }
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "source": "Exact plotted coordinates extracted from original unseen.pdf (Fig. 5), rounded to source precision; not raw evaluation records.",
+  "categories": [
+    "Caption",
+    "Theme",
+    "Emotion",
+    "Humor",
+    "Punchline",
+    "Cultural",
+    "Context",
+    "Spread"
+  ],
+  "series": [
+    {
+      "model": "GLM",
+      "ranks": [
+        6.0,
+        6.2,
+        6.4,
+        5.8,
+        5.6,
+        6.0,
+        5.8,
+        6.0
+      ]
+    },
+    {
+      "model": "InternVL",
+      "ranks": [
+        4.4,
+        4.0,
+        4.4,
+        4.6,
+        4.8,
+        5.0,
+        5.0,
+        4.8
+      ]
+    },
+    {
+      "model": "Keye",
+      "ranks": [
+        4.2,
+        4.4,
+        4.0,
+        4.4,
+        4.2,
+        3.8,
+        4.0,
+        4.4
+      ]
+    },
+    {
+      "model": "Qwen 7B",
+      "ranks": [
+        5.2,
+        4.6,
+        5.2,
+        4.2,
+        4.8,
+        5.6,
+        5.6,
+        5.0
+      ]
+    },
+    {
+      "model": "Qwen 32B",
+      "ranks": [
+        4.2,
+        4.2,
+        4.2,
+        4.0,
+        4.2,
+        4.2,
+        4.2,
+        4.0
+      ]
+    },
+    {
+      "model": "Human",
+      "ranks": [
+        1.2,
+        2.2,
+        1.2,
+        1.4,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "model": "HUMOR-CoT",
+      "ranks": [
+        2.8,
+        2.4,
+        2.6,
+        3.6,
+        3.4,
+        2.4,
+        2.4,
+        2.8
+      ]
+    }
+  ]
+}

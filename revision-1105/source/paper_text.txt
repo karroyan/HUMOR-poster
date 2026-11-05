@@ -1,0 +1,3819 @@
+
+===== PAGE 1 =====
+
+From Perception to Punchline: Empowering VLM
+with the Art of In-the-wild Memes
+
+Xueyan Li
+fl 
+Shanghai Artificial Intelligence Laboratory
+karroyan13@gmail.com
+Yingyi Xue
+fl
+Fudan University
+Shanghai Artificial Intelligence Laboratory
+yingyixue7@gmail.com 
+Mengjie Jiang
+Columbia Engineering
+Columbia University
+mj3290@columbia.edu
+Qingzi Zhu
+Shanghai Artificial Intelligence Laboratory
+zhuqingzi@pjlab.org.cn
+Yazhe Niu
+y 
+The Chinese University of Hong Kong MMLab
+niuyazhe314@outlook.com
+Abstract
+Generating humorous memes is a challenging multimodal task that moves beyond
+direct image-to-caption supervision. It requires a nuanced reasoning over visual
+content, contextual cues, and subjective humor. To bridge this gap between vi-
+sual perception and humorous punchline creation, we propose HUMOR, a novel
+framework that guides VLMs through hierarchical reasoning and aligns them with
+group-wise human preferences. First, HUMOR employs a hierarchical, multi-path
+Chain-of-Thought (CoT): the model begins by identifying a template-level intent,
+then explores diverse reasoning paths under different contexts, and finally anchors
+onto a high-quality, context-specific path. This CoT supervision, which traces back
+from ground-truth captions, enhances reasoning diversity. We further analyze that
+this multi-path exploration with anchoring maintains a high expected humor quality,
+under the practical condition that high-quality paths retain significant probability
+mass. Second, to capture subjective humor, we train a pairwise reward model that
+operates within groups of memes sharing the same template. Following established
+theory, this approach ensures a consistent and robust proxy for human preference,
+even with subjective and noisy labels. The reward model then enables group-wise
+RL with KL-controlled updates, yielding a bounded stability guarantee. Extensive
+experiments show that HUMOR empowers various VLMs with superior reasoning
+diversity, more reliable preference alignment, and higher overall meme quality. Be-
+yond memes, our work suggests a framework for subjective multimodal generation
+where coherent groups make relative judgments more reliable than global scores.
+1 Introduction
+Creativity in multimodal understanding and generation is progressively shifting from literal descrip-
+tion and visual perception to subjective and context-dependent outcomes, such as humor [Hessel
+et al., 2023, Hwang and Shwartz, 2023], aesthetics [Rombach et al., 2022], and social alignment [Bai
+et al., 2022]. In these domains, quality is not defined by a single ground-truth but is instead guided by
+
+fl
+Equal Contribution.
+y
+Corresponding author.
+40th Conference on Neural Information Processing Systems (NeurIPS 2026).
+
+===== PAGE 2 =====
+
+Figure 1: Given a template image, HUMOR first performs hierarchical reasoning with multi-path
+CoT: a template-level stage infers latent intent, while a context-level stage explores multiple visually
+grounded reasoning paths. One high-quality path is anchored by tracing back from ground-truth
+captions, promoting diversity while preserving a conditional humor lower bound. A reward model
+then compares memes only within groups sharing the same template, preserving rank consistency
+and providing a proxy for human preference. This reward further enables stable group-wise RL with
+KL-controlled updates, so potential degradation is explicitly bounded. Together, these components
+combine structured reasoning, group-wise preference modeling, and stable optimization for meme
+generation.
+diverseand often noisydistributions of human preference [Yadav et al., 2025, Burn and Kress,
+2018, Song et al., 2025]. While recent visionlanguage models (VLMs) have scaled to achieve strong
+results on captioning and visual question answering [Kuang et al., 2025, Ghandi et al., 2023], which
+admit relatively objective targets [Yan et al., 2023], the question of how to align models with such
+open-ended values [Bhatia et al., 2024, Feng et al., 2024] remains an open challenge.
+As a salient instance and testbed of this open-ended challenge, meme punchline generation illuminates
+these limitations. Current approaches often treat it as a straightforward image-to-caption task,
+optimized with fixed supervised losses on collected data [Peirson V and Tolunay, 2018, Hwang and
+Shwartz, 2023]. This formulation collapses the inherently diverse reasoning required for humor into
+the language model, suppresses intermediate interpretability, and tends to yield outputs that are fluent
+yet shallow or unfunny [Yadav et al., 2025]. Direct generation from a template forfeits control over
+the interpretive process and makes targeted steering difficult. Here a template denotes the shared
+visual basis or theme image for a group of memes. While recent evidence shows chain-of-thought
+(CoT) reasoning improves performance in VLMs [Zhang et al., 2023, Hu et al., 2024, Zhang and Niu,
+2025], we argue that meme generation necessitates a hierarchical, multi-path reasoning process.
+Observations from real-world meme data suggest that multiple reasoning paths can lead to distinct
+metaphorical bindings or punchlines [Xu et al., 2022]. Concretely, we decompose the process into
+two stages: a template-level stage that infers a canonical intent, followed by a context-level stage
+that grounds this intent in specific visual details. By first exploring multiple reasoning paths and
+then explicitly anchoring one with supervision, this design encourages diversity while maintaining
+sufficient humor quality. As our theoretical analysis (Section 3.3) shows, this approach preserves
+a conditional lower bound on expected humor, provided that high-quality paths retain sufficient
+probability mass and remaining paths are not significantly worse.
+Furthermore, optimizing generation toward human-preferred humor is essential to meet these theoret-
+ical conditions. Prior work on computational humor often relies on text-only cues or global funniness
+scores [Baluja, 2024, Kalloniatis and Adamidis, 2024, Zhu et al., 2025a], implicitly assuming humor
+is directly comparable across different meme templates. In practice, however, human judgments
+are more reliable and consistent within a coherent template group than across groups with differing
+conventions. Ignoring this group structure introduces noise, harms generalization, and encourages
+models to exploit reward superficial overlaps rather than genuine humorous fit(see empirical analyses
+in Sec. 4.2 and Sec. 4.4). Although humor cannot be reduced to a deterministic rule, we can design
+a pairwise reward model that enforces rank consistency within each template group. This model
+provides a stable, human-aligned preference signal, and further enables group-wise RL to ensure that
+expected humor cannot degrade beyond a bounded amount.
+Motivated by these above analyses, we propose HUMOR: a Hierarchical Understanding and Meme
+Optimization framework via reinforcement learning (RL). As illustrated in Figure 1 (high-level
+overview), our framework addresses the core challenges in meme punchline through several key
+2
+
+===== PAGE 3 =====
+
+components: hierarchical multi-path CoT reasoning, group-wise preference modeling, and stable
+policy optimization via RL. HUMOR decouples metaphorical reasoning from concrete punchline
+generation, respects within-group comparability, and translates preference signals into stable policy
+updates. In summary, our contributions are as follows:
+1.
+Formal modeling of meme punchline generation within semantically coherent groups. We
+formulate the task as an open-ended, group-wise reasoning problem, supported by hierarchi-
+cal multi-path CoT supervision and preference reward optimization. This approach decouples
+template-level intent from context-level grounding, exposing explicit reasoning traces while laying
+the foundation for structured preference optimization.
+2.
+Theoretical guarantees for humor measurement and stable optimization. We rigorously
+show that multi-path CoT supervision preserves a conditional humor lower bound, and that our
+preference learning ensures consistent within-group ordering with KL-controlled stability.
+3.
+Comprehensive experiments across multiple models and data demonstrate that HUMOR im-
+proves reasoning diversity, preference alignment, and overall meme quality, with additional
+analyses on unseen templates and a small cross-domain pilot supporting its broader applicability.
+To support reproducibility, we have released our anonymized dataset
+3
+. 
+2 Problem Formulation
+This section formulates the core assumptions and components used throughout the paper. We define
+the structured meme space and group-wise comparability, then characterize local pairwise preference
+data and assume a latent humor functional within each group. We further introduce an observation
+model linking latent humor to pairwise comparisons, and finally formulate the objective of a meme
+generator together with the key evaluation quantities. This results in a self-contained problem
+formulation that emphasizes group-wise comparability while remaining agnostic to training methods.
+Meme Space and Group-wise Comparability: Let
+M
+denote the set of all memes under consid-
+eration. Each meme is represented as a multimodal pair
+m = (I; c)
+, where
+I 2 I
+is a base image
+and
+c
+is a textual punchline rendered at designated positions. Many memes are created from widely
+shared templates and are interpreted through context-dependent associations. Since humor is highly
+subjective and context-sensitive, absolute comparisons of humor across different templates are often
+ill-posed. Therefore, we assume and partition the meme space into K disjoint groups:
+G = fG
+1
+; : : : ; G
+K
+g; G
+k
+ M; G
+k
+\ G
+`
+= ; (k 6= `)
+Memes within the same group share a comparable structure (e.g., the same template, punchline
+schema, or more generally a shared semantic context and communicative intent), which enables
+meaningful humor comparison. We posit that human judgments of humor are reliable within each
+group G
+k
+2 G, but do not assume comparability across different groups.
+More generally, this formulation is intended for subjective generation settings that satisfy three
+applicability conditions: (i) output quality is highly subjective and absolute cross-context scoring
+is unreliable; (ii) group boundaries are natural and semantically coherent rather than artificially
+constructed; and (iii) within-group pairwise preferences are available or can be collected at low
+cost. In such cases, local relative preference provides a better learning signal than a single globally
+calibrated score.
+Local Preference Data: For a given group
+G
+, we collect human annotations indicating which of
+two memes is considered funnier. Formally, for
+m
+i
+; m
+j
+2 G
+, define
+y
+G
+ij
+= I[ m
+i
+ m
+j
+] 2 f0; 1g
+where
+m
+i
+ m
+j
+denotes a local preference that
+m
+i
+is judged to be funnier than
+m
+j
+. The dataset
+consists of triples
+(G; (m
+i
+; m
+j
+); y
+G
+ij
+)
+sampled from a pairing distribution over
+G
+. We allow for
+incompleteness (not all pairs are labeled) and noise (due to inter-annotator disagreement). We
+adopt two mild yet standard assumptions from preference learning Christiano et al. [2023]: (i)
+local comparability: preferences are elicited and interpreted only within a fixed group
+G
+; (ii) weak
+transitivity: in expectation, if
+m
+i
+ m
+j
+and
+m
+j
+ m
+`
+, then
+m
+i
+ m
+`
+is more likely than its reversal,
+without requiring a strict total order.
+Latent Humor within A Group: Within each group
+G
+, we posit the existence of a latent humor
+functional
+h
+G
+: G ! [0; 1];
+This functional maps each meme
+m 2 G
+to a scalar reflecting its relative
+
+3
+https://huggingface.co/datasets/AnonySubmission/HUMOR-Datasets
+3
+
+===== PAGE 4 =====
+
+likelihood of being judged as funny by humans in that group. We do not assume that
+h
+G
+is calibrated
+across different groups, nor that h
+G
+and h
+G
+0
+are directly comparable when G 6= G
+0
+.
+Observation Model for Pairwise Labels: Pairwise comparison labels are modeled as noisy
+observations of underlying differences in latent humor. Formally, we assume:
+Pr
+fi
+m
+i
+ m
+j
+j G
+fl
+= fl
+
+h
+G
+(m
+i
+)  h
+G
+(m
+j
+)
+
+; (1)
+where
+fl : R ! (0; 1)
+is a strictly increasing link function [Sun et al., 2025]. Eq. 1 captures the
+intuition that the probability of preferring
+m
+i
+to
+m
+j
+depends only on their latent humor gap within
+the same group: when
+h
+G
+(m
+i
+)  h
+G
+(m
+j
+)
+, the choice is nearly ambiguous (probability
+ 1=2
+); as
+the gap increases, the probability moves smoothly toward
+1
+(if
+h
+G
+(m
+i
+) > h
+G
+(m
+j
+)
+) or
+0
+(otherwise),
+capturing that larger humor gaps lead to more consistent comparisons.
+Generation Goal and Evaluation Quantities: A meme generation model is defined as a conditional
+probability distribution over punchlines (or called captions) given an image:
+
+
+( j I) : I 7! (C)
+,
+where
+(C)
+denotes the set of probability distributions over the caption space
+C
+. A meme sample
+m = (I; c)
+is instantiated by sampling a caption
+c  
+
+( j I)
+. For any target group
+G
+containing
+meme candidates derived from the base image
+I
+, the expected within-group humor of
+
+
+is defined
+as
+H
+G
+() = E
+c
+
+(jI)
+fi
+h
+G
+
+(I; c)
+ fl
+. The overall population objective is then obtained by
+aggregating over groups according to a task-specific distribution over (I; G):
+H() = E
+(I;G)
+fi
+H
+G
+()
+fl
+: (2) 
+3 HUMOR Framework
+We propose HUMOR: Hierarchical Understanding and Meme Optimization, a framework that guides
+VLMs through hierarchical reasoning and aligns them with group-wise humor preferences. The
+overview of the framework is shown in Fig. 3. HUMOR consists of three components: hierarchical
+CoT supervision, pairwise reward modeling, and group-wise policy optimization. These components
+collectively support diverse reasoning, consistent preference learning, and stable preference-aligned
+optimization. Propositions 1, 2, C.3, and 4 formally establish the coherence and controllability of our
+framework.
+3.1 Hierarchical Chain-of-Thought Supervision
+Meme creation mirrors a hierarchical cognitive routine: humans first parse what a visual template
+affords, and then realize a chosen intent with text that fits the surrounding context Flamson and
+Barrett [2008]. We therefore model meme generation as a two-stage reasoning process, separating
+(i) intent inference from the image and (ii) context-sensitive textual realization of that intent. In
+practice, however, training trajectories are often single-path because they are derived from a single
+gold caption: back-deriving a rationale from one answer yields only one route.
+As shown in Fig. 14, when trained with the final answer as a single path, the model collapses
+the reasoning process into a single decoding step, failing to develop true association and in-depth
+understanding. It only establishes a superficial mapping from user input to the answer, leading to
+superficial captions and inability to adapt to the template nature of memes. Therefore, it is necessary
+to first explore the template's latent intent, and deliberately generate multiple semantic association
+possibilities under this template to support the flexible use of the template's high-level meaning.
+To address this, we conceptualize the meme understanding and reasoning process as a hierarchical
+chain-of-thought
+r = (r
+tmpl
+; r
+cont
+)
+, which explicitly decouples template-level interpretation from
+context-level grounding. Captions are then realized by sampling from P
+
+(c j r; I).
+To approximate human authorship, we supervise CoT in two stages. The process is shown in Fig. 2.
+In Stage 1, we first train the model
+P
+
+(r j I;
+^
+U )
+with multi-path reasoning traces synthesized
+by auxiliary LLM teachers under
+(I;
+^
+U )
+, where
+^
+U
+is a candidate set of potential user contexts
+(e.g., emotions, intentions, scenarios) suggested by the template's affordances (Appendix B). At
+inference, the model explores multiple reasoning paths conditioned only on
+I
+, while hypothesizing a
+candidate set of potential user contexts
+^
+U
+(e.g., emotions, intentions, or scenarios a user might want
+to express). Concretely, the model generates reasoning candidates (multiple associative scenarios)
+fr
+(i)
+g
+N
+i=1
+ P
+
+(r j I;
+^
+U )
+, encouraging broad coverage of diverse interpretations. This part is similar
+to how humans brainstorm several possible jokes before finalizing one.
+4
+
+===== PAGE 5 =====
+
+In Stage 2, when groundtruth captions are available, we anchor one path
+~r
+to be consistent with the
+punchlines of real memes (i.e., ground-truth captions) by incorporating the actual user context
+U
+,
+which is inferred from ground-truth captions. Formally, we select
+~r = arg max
+r
+P
+
+(c j r; I; U )
+,
+which ensures trajectory consistency while preserving the diversity acquired in Stage 1. At inference
+time (no gold caption), the generator ranks and selects among Stage 1 paths using its internal
+scoring/decoding policy (see Appendix B for construction details and examples).
+
+Figure 2: This diagram shows the dataflow for constructing hierarchical CoT supervisions. Stage 1
+explores multiple reasoning paths that bind a template to different context-specific details. Stage 2
+anchors one high-quality path from ground-truth, preserving diversity while preventing collapse.
+The benefit can be formalized as follows. Let
+~
+h
+G
+: R ! [0; 1]
+denote group-relative humor measure
+defined over reasoning paths. Suppose there exists a set of star paths (i.e., better paths)
+R
+?
+with
+probability mass
+ > 0
+under the reasoning distribution, and the average humor gap between non-star
+paths and the best paths is bounded by   0. Then, we have the following guarantee:
+Proposition 1 (Conditional humor lower bound). Normalizing
+max
+~
+h
+G
+= 1
+, the expected humor
+after two stages CoT supervision satisfies:
+E
+rP
+
+[
+~
+h
+G
+(r)]  1  (1  ):
+Intuitively, as long as promising reasoning paths retain non-negligible probability (
+
+is not too
+small) and the remaining paths are only moderately worse (small
+
+), exploration and anchoring
+preserve a nontrivial lower bound on expected humor. Meanwhile, Stage 1 exploration maintains
+multi-hypothesis diversity, preventing entropy from collapsing in the no-exploration limit, while
+Stage 2 anchoring ensures that a non-negligible probability mass remains concentrated on promising
+paths. Thus, our CoT framework broadens the range of interpretations without sacrificing quality.
+However, although anchoring toward ground-truth paths naturally supports a sufficiently large
+
+, the
+humor gap
+
+remains uncontrolled, as some generated paths may still be much less funny than others.
+Reducing
+
+therefore requires an additional mechanism that captures human humor preferences and
+guides optimization beyond imitation.
+3.2 Reward Modeling from Pairwise Preferences
+The ideal learning objective would be to recover the latent humor function
+h
+G
+(m)
+for each meme
+m
+. Since humor is inherently subjective and lacks a global scale, this is infeasible in practice. We
+therefore adopt an order-consistent view of reward modeling (following established theory [Sun et al.,
+2025]) and instantiate it in our group-wise meme setting. Under this formulation, the reward serves
+as a within-group surrogate of
+h
+G
+, trained only from relative judgments, avoiding ill-posed cross-
+group calibration. Intuitively, hierarchical CoT ensures that high-quality paths retain a meaningful
+probability mass (the
+
+condition via Stage 2 anchoring), while the reward model supplies the
+preference signal necessary to shrink the average gap among plausible paths (addressing the
+ 
+condition). This transforms open-ended exploration into a tractable selection problem.
+Each meme
+m = (I; c)
+is encoded to a feature vector
+	(m) 2 R
+d
+using a VLM as the encoder. Let
+a scoring head
+f
+
+: R
+d
+! R
+map this feature vector
+	(m)
+to a scalar score.we denote this score
+as
+s
+
+(m) = f
+
+
+	(m)
+
+. For any pair of memes
+(m
+i
+; m
+j
+)
+from the same group
+G
+, we define the
+predicted preference probability as:
+bp
+G
+ij
+= 
+
+s
+
+(m
+i
+)  s
+
+(m
+j
+)
+
+; (3)
+where
+()
+denotes the logistic function; The model is trained by minimizing the binary cross-entropy
+over human-annotated or auto-generated preference pairs.
+5
+
+===== PAGE 6 =====
+
+Building upon the reward modeling formulation in Eq. 3, we now formalize two key theoretical
+properties (order consistency and stability) that justify its use in our within-group meme setting.
+Proposition 2 (Rank consistency). Under the observation model of Eq. 1 with any strictly increasing
+link function, minimizing the pairwise preference loss recovers the same within-group ordering as the
+latent humor function h
+G
+. Complete proofs are provided in Appendix C.
+The empirical reliability of this rank consistency across different backbones is further analyzed in
+Appendix G.2.
+Proposition 3 (Robustness to label noise (margin-aware)). Let
+
+G
+ij
+= h
+G
+(m
+i
+)  h
+G
+(m
+j
+)
+denote the
+true humor gap, and assume the annotation process has pairwise error rate
+"
+. For pairs satisfying
+j
+G
+ij
+j  
+, the probability of order reversal is bounded above by a function decreasing in
+
+and
+increasing in "; large humor gaps are therefore preserved even under noisy labels.
+These propositions, while grounded in the order-consistent analysis of Sun et al. [2025], are specifi-
+cally instantiated under our group-wise comparability. They serve as the theoretical drivers to reduce
+the humor gap
+
+after CoT has secured
+
+. Since pairwise data can be sparse, we aggregate
+bp
+G
+ij
+into a coherent within-group ranking via Expected Borda Count (EBC) (see Appendix E for more
+explanations and implementations). For a candidate set
+S
+G
+, each meme's EBC score equals its ex-
+pected number of wins against others under the model in Eq. 3. This provides a stable training target,
+and inherits expected order consistency when the pairwise model is consistent (Appendix C). To
+complement this outcome-oriented supervision, we further incorporate auxiliary rewards to regulate
+the intermediate reasoning path (Appendix G), comprising a structural format reward (Appendix G.1)
+and a monotonicity-validated content reward (Appendix G.2). Detailed constructs and examples of
+pairwise data are provided in Appendix F.
+3.3 Group-wise Policy Optimization
+Following the CoT supervision stage and reward model training, we further fine-tune the meme
+generator to increase the probability of higher-ranked captions. Concretely, we leverage the trained
+reward model and adopt a Group-wise Relative Policy Optimization (GRPO) objective Shao et al.
+[2024]. For a candidate set of memes S
+G
+with ranking q
+G
+from EBC, the fine-tuning loss is: 
+L
+GRPO
+() = E
+(I;G)
+"
+
+X
+m
+k
+2S
+G
+q
+G
+(m
+k
+) log 
+
+(c
+k
+j I)
+#
++  E
+I
+[KL(
+
+( j I) k 
+ref
+( j I))]
+(4)
+where
+
+ref
+denotes the policy obtained after CoT training. The first term aligns
+
+
+with the group-local
+preference distribution
+q
+G
+(rank-consistent with
+h
+G
+). Since prior preference optimization analyses
+Christiano et al. [2023], Neu and Szepesvari [2012], Haarnoja et al. [2018] often propose optimistic
+lower bounds, we adopt a corrected, KL-controlled stability guarantee that holds under our setting
+and noise model. Specifically, the original upper bound on the humor-score deviation (induced by
+preference noise) can be refined under GRPO into a bound that scales with the KL between the
+trained policy and the reference policy (proof in Appendix D).
+Proposition 4 (Bounded change of expected humor under GRPO). Assume Proposition 2 holds and
+h
+G
+2 [0; 1]. Let 
+KL
+= E
+I
+[KL(
+
+( j I) k 
+ref
+( j I))]. Then 
+E
+(I;G)
+h
+E
+c
+
+h
+G
+(I; c)
+i
+ E
+(I;G)
+h
+E
+c
+ref
+h
+G
+(I; c)
+i
+
+q
+
+1
+
+2
+
+KL
+(5)
+Hence, if GRPO enforces
+
+KL
+ 
+, the expected humor cannot drop by more than
+p
+
+ =2
+; the first
+term encourages movement toward the group-local preference distribution
+q
+G
+, while the KL term
+makes any possible degradation explicit and bounded.
+This bound, derived via Pinsker's inequality, formalizes the stability underlying our approach in
+practice: CoT supervision supplies sufficient support (
+
+), the reward model and EBC induce a
+group-local order that reduces
+
+, and GRPO turns this order into controlled policy updates. In sum,
+our use of order-consistent surrogates aligns with established theory, but the group-wise instantiation,
+the corrected KL-based bound, and the integration with multi-path CoT for open-ended generation
+are key ingredients that make the approach effective and verifiable for meme generation.
+6
+
+===== PAGE 7 =====
+
+Figure 3: Training Pipeline of HUMOR. Multi-path CoT expands reasoning coverage and anchors a
+canonical path; the reward model translates pair data into a rank-consistent group-level signal (via
+EBC); GRPO then updates the generator toward higher-ranked captions.
+4 Experiment
+4.1 Meme Quality and Diversity with HUMOR
+Settings: We evaluate HUMOR against competitive baselines and model variants, including multi-
+ple open-source and closed-source VLMs and our HUMOR-CoT, which is fine-tuned with hierarchical
+CoT. To study the effectiveness of alternative CoT strategies for meme generation, we also include
+several advanced CoT frameworks [Kim et al., 2023, Chen et al., 2024a], all trained under the same
+data and protocol. Detailed training settings and dataset statistics are provided in Appendix I and H.
+Given the open-ended, human-aligned nature of meme generation, we prioritize human evaluation,
+where annotators score generated memes along four predefined quality axes. We additionally report
+the conventional text-level similarity between generated captions and their reference texts. To measure
+diversity, we introduce Distance under Context Swap, which replaces the original training context
+with a randomly selected one (kept fixed across models) and computes the textual divergence between
+the resulting caption and the original; a larger distance indicates less overfitting to SFT labels and
+better adaptation to new contexts.
+Because VLM-based rubric scores are unstable for meme evaluation (Sec. 4.2), we report Human
+Rate as a complementary VLM-based metric. Human Rate is a Gemini-based binary human/AI
+discriminability metric that estimates whether a rendered meme appears human-generated; we use
+it as a human-likeness proxy rather than an absolute humor score. Full metric definition, evaluator
+selection, and human-alignment validation are provided in Appendix K. Here we use Gemini-2.5-pro
+for this metric, as it shows the most stable and consistent behavior among candidate VLM evaluators
+in our reliability analysis (Appendix K). Appendix J offers definitions of all metrics and evaluation
+criteria.
+Results: As summarized in Table 1, the proposed HUMOR framework achieves substantial im-
+provements across multiple evaluation dimensions, validating its efficacy for humor-oriented meme
+generation. Specifically, in terms of Humor, HUMOR-CoT attains a score of 2.68, surpassing the base
+model Qwen2.5-7B-Instruct (2.39). Qualitative analysis suggests that HUMOR-improved models
+better capture nuanced humor mechanisms such as sarcasm and self-mockery. For Readability,
+HUMOR-CoT achieves a score of 3.70, outperforming all compared variantsincluding powerful
+closed-source models. It can generate meme texts with appropriate length and engaging structure,
+avoiding the verbosity common in many VLMs while maintaining humor expressivity, thereby better
+aligning with human writing conventions. It also excels in theme relevance and originality, demon-
+strating an ability to interpret deeper user intent rather than superficially referencing visual content.
+Although semantic similarity is less indicative for meme captionswhich often consist of short
+phrases, HUMOR-CoT still achieves the closest alignment to reference captions among all models.
+Our proposed Context-Swap Distance metric further reveals that HUMOR-CoT (0.590) exceeds
+the baseline (0.564), indicating stronger generalization and context adaptability when user inputs are
+altered. This supports the hypothesis that hierarchical CoT reduces overfitting to concrete training
+labels. Finally, HUMOR-CoT achieves a Human Rate of over 91%, significantly outperforming the
+base model (75.7%) and even surpassing the closed-source GPT-4o (91.3%).
+7
+
+===== PAGE 8 =====
+
+Table 1: Evaluation results across open-source models, closed-source models, and Qwen2.5-7B-
+Instruct fine-tuned with our proposed and different CoT methods. Metrics include context-swap
+distance (diversity criterion), text-level similarity (sim. to original meme text), human evaluation
+(Humor, Readability, Relevance, Originality), and Human Rate.
+
+Category / Model
+Human Evaluation (0-5) "
+Text-level
+Similarity "
+Context-swap
+Distance "
+Human Rate (%)"
+
+Humor Readability Relevance Originality
+
+Open-source Models
+Qwen2.5-7B-Instruct [Bai et al., 2025] 2.39 3.35 2.91 2.57 0.576 0.564 75.7
+Qwen2.5-32B-Instruct [Bai et al., 2025] 2.54 3.52 3.09 2.76 0.564 0.566 82.2
+InternVL3-8B [Zhu et al., 2025b] 2.39 2.79 3.04 2.79 0.545 0.564 62.7
+GLM-4.1V-9B-Thinking [Hong et al., 2025] 1.73 2.62 2.75 2.71 0.602 0.572 45.1
+Keye-VL-8B-preview [Team et al., 2025] 2.35 3.19 2.99 2.71 0.585 0.580 69.0
+
+Closed-source Models
+GPT-4o [OpenAI, 2024] 2.70 2.99 3.21 2.97 0.603 0.552 91.3
+Gemini-2.5-flash [Comanici et al., 2025] 2.81
+
+3.29 3.25 2.88 0.600 0.561 -
+
+Fine-tuned Model
+HUMOR-CoT 2.68 3.70 3.50
+
+2.90
+
+0.640 0.590
+
+91.5
+
+CoT with Single Path [Kim et al., 2023] 1.87 2.79 2.68 2.45 0.637
+
+0.570 86.0 
+CoT with Self-Improve [Chen et al., 2024a] 2.38 3.68
+
+3.00 2.65 0.629 0.578 89.1 
+CoT with Subquestion [Wei et al., 2022] 1.85 3.32 2.58 2.47 0.639 0.597 87.2
+HUMOR-RL (preview) 2.83 3.67 3.55 2.79 0.631 0.588 92.3
+
+Ablations on alternative CoT variants further illustrates the superiority of HUMOR: while Single
+Path lacks bottom-up visual grounding and produces narrow reasoning chains; Self-Improve attains
+high readability, it yields conservative, safe but dull outputs; Subquestion mitigates overfitting
+but suffers from over-decomposition, impairing humor and relevance. In contrast, HUMOR-CoT's
+two-stage reasoning more closely emulates human cognition process for better meme generation.
+Beyond human and text-level evaluations, we further validate model alignment through a VLM-based
+reclassification test (Appendix L.1). As summarized in Table 5, HUMOR-CoT consistently surpasses
+both the Qwen2.5-7B and Qwen2.5-32B base models across all four semantic dimensionsemotion,
+intention, theme, and style. Notably, despite being trained on the smaller 7B backbone, HUMOR-CoT
+even outperforms the 32B variant, demonstrating that the hierarchical CoT design contributes more
+effectively to user-intent preservation than scaling model size alone.
+Retrieval-augmented emerging memes. We further examine whether HUMOR-style reasoning
+can be combined with retrieval for evolving meme usages. In Appendix N.3, we provide a small
+qualitative case study where recent meme-trend descriptions are retrieved and inserted into the
+prompt. Retrieval supplies external and time-sensitive context, while HUMOR improves how the
+VLM interprets the template, explores plausible communicative intents, and generates captions under
+local preference structure. This supports our claim that retrieval-based adaptation and HUMOR are
+complementary rather than competing approaches.
+Cross-domain pilot. To probe whether the same reasoning and group-wise selection procedure can
+be instantiated beyond meme generation, we additionally conduct a small pilot on persona-conditioned
+visual captioning (Appendix L.2). This experiment is not intended as a full transfer benchmark, but
+as directional evidence: under coherent image-persona groups, HUMOR-style multi-path reasoning
+improves semantic candidate diversity and local pairwise preference outcomes compared with direct
+generation.
+4.2 VLM Reliability Evaluation
+After the CoT-based experiments, we further examined the reliability of VLM-based scoring for
+meme evaluation. In practice, existing VLMs often fail to align with human judgment: even for
+clearly distinct examples such as In-the-wild Memes (human-created and high-quality) versus Text-
+Free Memes (text removed), their absolute scores remain nearly identical, revealing that absolute
+scoring is inadequate for assessing humor or cultural nuance. As shown in Fig. 4(b), the group-wise
+relative ranking protocol produces much clearer distinctions between high- and low-quality memes
+and aligns well with human perception. A human study further validates that these rankings capture
+genuine preference structures, showing strong agreement with Gemini-2.5-pro (Spearman 0.72,
+8
+
+===== PAGE 9 =====
+
+Figure 4: (a) VLM-based absolute scoring fails to distinguish meme quality. (b) Group-wise
+ranking produces more reliable distinctions, better aligned with human.
+Kendall's
+
+0.63); full details are provided in Appendix K.5. Under this reliable evaluation protocol,
+HUMOR-CoT ranks second only to human-created memes and consistently surpasses all CoT-based
+training baselines. Building on this reliable ranking framework, we further assess HUMOR's ability
+to generalize to meme templates entirely unseen during training. We evaluate 20 novel templates
+with no imagetext overlap with the training corpus. Gemini-2.5-pro jointly ranks outputs from
+different variants. As shown in Fig. 5, HUMOR-CoT again ranks second only to human-created
+memes, mirroring the in-distribution trend. This demonstrates strong zero-shot robustness: the
+hierarchical CoT effectively transfers its learned humor construction to unfamiliar formats rather
+than overfitting to template-specific patterns. For completeness, the full evaluation prompts are
+provided in Appendix O.4, detailed experimental settings in Appendix J.1, and representative outputs
+comparing different CoT reasoning schemes in Appendix N.1. Additional analysesincluding risk-
+case identification (Appendix N.4), failure-case diagnostics (Appendix N.5), real-world application
+(Appendix N.6) and generalization to Unseen templates (Appendix N.2)offer further qualitative
+and quantitative evidence supporting the robustness and interpretability of HUMOR-CoT.
+4.3 Reward Model Rank Consistency and RL Training
+Table 2 evaluates reward models trained with the group-wise ranking strategy. These models are fine-
+tuned from different base models to align with human preference rankings (see Appendix I.2). For
+evaluation, we use five meme templates, Image1Image5, each containing 1015 candidate memes
+(Figure 12). For each template, we obtain a group-level human ranking via MaxDiff (Appendix J.2),
+and the resulting rankings for these example templates are shown in Appendix J.3. Model rankings
+are obtained by (i) collecting in-group pairwise comparisons from either the base model or the
+fine-tuned reward model (HUMOR-RM), and (ii) aggregating them with Expected Borda Count
+(EBC) to produce a more reasonable sequence ranking. We report Kendall's
+
+and its
+p
+-value to
+evaluate the rank consistency objective (Section 3.2). HUMOR-RM built on Keye-VL-8B achieves
+consistently high
+
+with significant
+p
+-values, often
+p  10
+3
+, across Image1Image5, indicating
+strong within-group agreement with human preferences. Results on Qwen2.5-VL-7B are mixed,
+showing moderate alignment on some templates but near-chance behavior on others, with inconsistent
+significance. Qwen2.5-VL-32B and other backbones show limited gains. Overall, the group-wise
+fine-tuning usually improves or preserves ranking consistency under the same training and ranking
+supervision, with the strongest and most statistically reliable gains appearing on the semantically
+stronger Keye-VL backbone.
+4.4 Reward Model Analysis on Different Base Model
+Across all evaluated templates (Image 15), the Keye-VL-8B base model achieves higher in-group
+ranking consistency with human preferences than Qwen2.5-VL variants. We next examine why the
+post-training trajectories differ across base models and whether our training scheme induces model-
+specific preferences. Here, we present the differences among the top-ranked images preferred by
+reward models fine-tuned on different base models. In Fig. 6, Qwen2.5-VL-7B tends to anchor caption
+preferences on salient visual objects. For instance, when Image 5 depicts a panda holding a coffee
+cup, it favors captions containing the word "coffee"; Similarly, for Image 2, which shows an older
+woman looking at a laptop, it prefers references for "grandma" or computer-related terms. In contrast,
+Keye-VL-8B more consistently captures implied internal states or situational cues within the scene and
+aligns them with the template's communicative intent. In the same examples, it interprets the panda
+as resembling a "tired office worker" and the woman as appearing "puzzled", which aligns better with
+9
+
+===== PAGE 10 =====
+
+Figure 5: Group-wise ranking results on 20 unseen
+meme templates. Lower ranking is better. HUMOR-
+CoT generalizes well and remains competitive with
+human-created memes (in-the-wild memes).
+
+Figure 6: Qwen2.5-VL-7B prefers captions
+that mention direct objects, whereas Keye-VL-
+8B prefers captions reflecting the human-like
+perception and understanding.
+Table 2: (Reward Model) Ranking results of different baselines among distinct template images. It
+indicates the change after fine-tuning relative to the baseline: an increase in Kendall tau
+
+and a
+decrease in p-value
+p
+represent improvements (highlighted in green), while the opposite indicates
+deterioration (shown in red). Significance levels: * p < 0:05; ** p < 0:01; *** p < 0:001.
+
+Model
+Template 1 Template 2 Template 3 Template 4 Template 5
+
+ " p #  " p #  " p #  " p #  " p #
+
+Qwen2.5-VL-7B (Base) 0.16 0.60 0.28 0.17 0.47 0.07 -0.10 0.63 0.29 0.29
+Qwen2.5-VL-7B (Finetuned) 0.47 0.07 0.56 0.03* 0.42 0.11 0.14 0.50 0.47 0.07
+ vs Base +0:31 0:53 +0:28 0:14 0:04 +0:04 +0:25 0:13 +0:18 0:22
+
+Qwen2.5-VL-32B (Base) 0.16 0.61 0.16 0.44 -0.02 1.00 0.14 0.50 0.29 0.29
+Qwen2.5-VL-32B (Finetuned) 0.29 0.29 0.47 0.02* 0.07 0.86 0.30 0.14 0.42 0.11
+ vs Base +0:13 0:32 +0:30 0:42 +0:09 0:14 +0:15 0:36 +0:13 0:18
+
+Keye-VL-8B (Base) 0.05 0.85 0.09 0.70 0.16 0.60 0.29 0.29 0.16 0.60
+Keye-VL-8B (Finetuned) 0.78 0.00*** 0.77 0.00*** 0.78 0.00*** 0.78 0.00*** 0.78 0.00***
+ vs Base +0:73 0:84 +0:69 0:70 +0:62 0:60 +0:49 0:29 +0:62 0:60
+
+human rankings under our evaluation protocol. These findings aligns with our theoretical expectation:
+while the reward model supplies only a preference ordering, effective alignment ultimately depends
+on the base model's capacity to represent the nuanced cues underlying human humor perception.
+5 Conclusion
+In this work, we tackled the complex challenge of teaching VLMs the art of in-the-wild meme
+generation, a task that requires nuanced reasoning beyond standard image captioning. Our proposed
+framework, HUMOR, successfully bridges the gap from visual perception to humorous punchline
+by instituting a two-stage process of hierarchical reasoning and preference alignment. Through
+a novel hierarchical CoT, the model learns to explore diverse creative paths while anchoring on
+high-quality outcomes. Furthermore, by leveraging group-wise preference modeling and RL, we
+ensure the generated humor aligns with human judgment in a stable and consistent manner. More
+broadly, HUMOR points to a conditional framework for subjective open-ended multimodal generation,
+especially when outputs can be organized into semantically coherent groups and local comparative
+judgments are more reliable than global scores.
+10
+
+===== PAGE 11 =====
+
+Acknowledgement
+We gratefully acknowledge the support from Shanghai Artificial Intelligence Laboratory. The
+resources and funding provided by the lab significantly contributed to this work.
+References
+Mahadev L. Apte. Humor and Laughter: An Anthropological Approach. Cornell University Press,
+Ithaca, NY, 1985.
+Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang,
+Shijie Wang, Jun Tang, et al. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923,
+2025.
+Yuntao Bai, Saurav Kadavath, Sandipan Kundu, Amanda Askell, Jackson Kernion, Andy Jones, Anna
+Chen, Anna Goldie, Azalia Mirhoseini, et al. Constitutional ai: Harmlessness from ai feedback.
+arXiv preprint arXiv:2212.08073, 2022.
+Ashwin Baluja. Text is not all you need: Multimodal prompting helps llms understand humor. arXiv
+preprint arXiv:2412.05315, 2024.
+Mehar Bhatia, Sahithya Ravi, Aditya Chinchure, Eunjeong Hwang, and Vered Shwartz. From local
+concepts to universals: Evaluating the multicultural understanding of vision-language models.
+arXiv preprint arXiv:2407.00263, 2024.
+Kim Binsted, Anton Nijholt, Oliviero Stock, Carlo Strapparava, Graeme Ritchie, Ruli Manurung,
+Helen Pain, Annalu Waller, and Dave O'Mara. Computational humor. IEEE Intelligent Systems,
+21(2):5969, 2006. doi: 10.1109/MIS.2006.22.
+Andrew Burn and Gunther Kress. Multimodality, style, and the aesthetic: The case of the digital
+werewolf. In Multimodality and aesthetics, pages 1536. Routledge, 2018.
+Junying Chen, Zhenyang Cai, Ke Ji, Xidong Wang, Wanlong Liu, Rongsheng Wang, Jianye Hou,
+and Benyou Wang. Huatuogpt-o1, towards medical complex reasoning with llms. arXiv preprint
+arXiv:2412.18925, 2024a.
+Yuyan Chen, Songzhou Yan, Zhihong Zhu, Zhixu Li, and Yanghua Xiao. Xmecap: Meme caption
+generation with sub-image adaptability. In Proceedings of the 32nd ACM International Conference
+on Multimedia, pages 33523361, 2024b.
+Paul Christiano, Jan Leike, Tom B. Brown, Miljan Martic, Shane Legg, and Dario Amodei. Deep
+reinforcement learning from human preferences, 2023. URL
+https://arxiv.org/abs/1706. 
+03741.
+Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, Inderjit
+Dhillon, Marcel Blistein, Ori Ram, Dan Zhang, Evan Rosen, et al. Gemini 2.5: Pushing the frontier
+with advanced reasoning, multimodality, long context, and next generation agentic capabilities.
+arXiv preprint arXiv:2507.06261, 2025.
+Yuhao Du, Muhammad Aamir Masood, and Kenneth Joseph. Understanding visual memes: An
+empirical analysis of text superimposed on memes shared on twitter. In Proceedings of the
+International AAAI Conference on Web and Social Media, volume 14, pages 153164, 2020.
+Shangbin Feng, Taylor Sorensen, Yuhan Liu, Jillian Fisher, Chan Young Park, Yejin Choi, and Yulia
+Tsvetkov. Modular pluralism: Pluralistic alignment via multi-llm collaboration. arXiv preprint
+arXiv:2406.15951, 2024.
+Thomas Flamson and H Clark Barrett. The encryption theory of humor: A knowledge-based
+mechanism of honest signaling. Journal of Evolutionary Psychology, 6(4):261281, 2008.
+Taraneh Ghandi, Hamidreza Pourreza, and Hamidreza Mahyar. Deep learning approaches on image
+captioning: A review. ACM Computing Surveys, 56(3):139, 2023.
+11
+
+===== PAGE 12 =====
+
+Tuomas Haarnoja, Aurick Zhou, Pieter Abbeel, and Sergey Levine. Soft actor-critic: Off-policy
+maximum entropy deep reinforcement learning with a stochastic actor, 2018. URL
+https: 
+//arxiv.org/abs/1801.01290.
+Jack Hessel, Ana Marasovi
+´
+c, Jena D. Hwang, Lillian Lee, Jeff Da, Rowan Zellers, Robert Mankoff,
+and Yejin Choi. Do androids laugh at electric sheep? Humor "understanding" benchmarks from
+The New Yorker caption contest. In Proceedings of the 61st Annual Meeting of the Associa-
+tion for Computational Linguistics (Volume 1: Long Papers), pages 688714. Association for
+Computational Linguistics, 2023.
+Wenyi Hong, Wenmeng Yu, Xiaotao Gu, Guo Wang, Guobing Gan, Haomiao Tang, Jiale Cheng,
+Ji Qi, Junhui Ji, Lihang Pan, et al. Glm-4.1 v-thinking: Towards versatile multimodal reasoning
+with scalable reinforcement learning. arXiv e-prints, pages arXiv2507, 2025.
+Yushi Hu, Otilia Stretcu, Chun-Ta Lu, Krishnamurthy Viswanathan, Kenji Hata, Enming Luo, Ranjay
+Krishna, and Ariel Fuxman. Visual program distillation: Distilling tools and programmatic
+reasoning into vision-language models. In Proceedings of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition, pages 95909601, 2024.
+Yupan Huang, Hongwei Xue, Bei Liu, and Yutong Lu. Unifying multimodal transformer for bi-
+directional image and text generation. In Proceedings of the 29th ACM International Conference
+on Multimedia, MM '21, page 11381147, New York, NY, USA, 2021. Association for Computing
+Machinery. ISBN 9781450386517. doi: 10.1145/3474085.3481540. URL
+https://doi.org/ 
+10.1145/3474085.3481540.
+EunJeong Hwang and Vered Shwartz. Memecap: A dataset for captioning and interpreting memes.
+arXiv preprint arXiv:2305.13703, 2023.
+Antonios Kalloniatis and Panagiotis Adamidis. Computational humor recognition: a systematic
+literature review. Artificial Intelligence Review, 58(2):43, 2024.
+Seungone Kim, Se June Joo, Doyoung Kim, Joel Jang, Seonghyeon Ye, Jamin Shin, and Minjoon
+Seo. The cot collection: Improving zero-shot and few-shot learning of language models via
+chain-of-thought fine-tuning. arXiv preprint arXiv:2305.14045, 2023.
+Yuval Kirstain, Adam Polyak, Uriel Singer, Shahbuland Matiana, Joe Penna, and Omer Levy. Pick-
+a-pic: An open dataset of user preferences for text-to-image generation. In Advances in Neural
+Information Processing Systems, 2023.
+Jiayi Kuang, Ying Shen, Jingyou Xie, Haohao Luo, Zhe Xu, Ronghao Li, Yinghui Li, Xianfeng
+Cheng, Xika Lin, and Yu Han. Natural language understanding and inference with mllm in visual
+question answering: A survey. ACM Computing Surveys, 57(8):136, 2025.
+Jordan J Louviere and George G Woodworth. Best-worst scaling: A model for the largest difference
+judgments. Technical report, working paper, 1991.
+Jordan J Louviere, Terry N Flynn, and Anthony Alfred John Marley. Best-worst scaling: Theory,
+methods and applications. Cambridge University Press, 2015.
+Gergely Neu and Csaba Szepesvari. Apprenticeship learning using inverse reinforcement learning
+and gradient methods, 2012. URL https://arxiv.org/abs/1206.5264.
+Hugo Gonçalo Oliveira, Diogo Costa, and Alexandre Miguel Pinto. One does not simply produce
+funny memes!explorations on the automatic generation of internet humor. In Proceedings of the
+Seventh International Conference on Computational Creativity (ICCC 2016). Paris, France, 2016.
+OpenAI. Hello gpt-4o.
+https://openai.com/index/hello-gpt-4o/
+, 2024. Accessed: 2025-
+09-25.
+B Orme. Getting started with conjoint analysis: strategies for product design and pricing research
+second edition. Madison: Research Publishers LLC, 2010.
+Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin, Chong
+Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, et al. Training language models to follow
+instructions with human feedback. In NeurIPS, 2022.
+12
+
+===== PAGE 13 =====
+
+Abel L Peirson V and E Meltem Tolunay. Dank learning: Generating memes using deep neural
+networks. arXiv preprint arXiv:1806.04510, 2018.
+Rafael Rafailov, Archit Sharma, Eric Mitchell, Christopher D. Manning, Stefano Ermon, and Chelsea
+Finn. Direct preference optimization: Your language model is secretly a reward model. In Advances
+in Neural Information Processing Systems, 2023.
+Aditya Ramesh, Mikhail Pavlov, Gabriel Goh, Scott Gray, Chelsea Voss, Alec Radford, Mark Chen,
+and Ilya Sutskever. Zero-shot text-to-image generation. ArXiv, abs/2102.12092, 2021. URL
+https://api.semanticscholar.org/CorpusID:232035663.
+Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Björn Ommer. High-
+resolution image synthesis with latent diffusion models. In CVPR, 2022.
+Aadhavan Sadasivam, Kausic Gunasekar, Hasan Davulcu, and Yezhou Yang. Memebot: Towards
+automatic image meme generation. arXiv preprint arXiv:2004.14571, 2020.
+Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang,
+Mingchuan Zhang, Y. K. Li, Y. Wu, and Daya Guo. Deepseekmath: Pushing the limits of mathemat-
+ical reasoning in open language models, 2024. URL https://arxiv.org/abs/2402.03300.
+Chhavi Sharma, Deepesh Bhageria, William Scott, Srinivas Pykl, Amitava Das, Tanmoy Chakraborty,
+Viswanath Pulabaigari, and Bjorn Gamback. Semeval-2020 task 8: Memotion analysisthe
+visuo-lingual metaphor! arXiv preprint arXiv:2008.03781, 2020.
+Shivam Sharma, Udit Arora, Md Shad Akhtar, Tanmoy Chakraborty, et al. Memex: Detecting
+explanatory evidence for memes via knowledge-enriched contextualization. arXiv preprint
+arXiv:2305.15913, 2023.
+Kurt Shuster, Samuel Humeau, Hexiang Hu, Antoine Bordes, and Jason Weston. Engaging image
+captioning via personality. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, pages 1251612526, 2019.
+Changhao Song, Yazhou Zhang, Hui Gao, Ben Yao, and Peng Zhang. Large language models for
+subjective language understanding: A survey. arXiv preprint arXiv:2508.07959, 2025.
+Hao Sun, Yunyi Shen, and Jean-Francois Ton. Rethinking reward modeling in preference-based large
+language model alignment. In The Thirteenth International Conference on Learning Representa-
+tions, 2025.
+Kwai Keye Team, Biao Yang, Bin Wen, Changyi Liu, Chenglong Chu, Chengru Song, Chongling
+Rao, Chuan Yi, Da Li, Dunju Zang, et al. Kwai keye-vl technical report. arXiv preprint
+arXiv:2507.01949, 2025.
+Suryatej Reddy Vyalla and Vishaal Udandarao. Memeify: A large-scale meme generation system. In
+Proceedings of the 7th ACM IKDD CoDS and 25th COMAD, pages 307311. 2020.
+Han Wang and Roy Ka-Wei Lee. Memecraft: Contextual and stance-driven multimodal meme
+generation. In Proceedings of the ACM Web Conference 2024, pages 46424652, 2024.
+William Yang Wang and Miaomiao Wen. I can has cheezburger? a nonparanormal approach to
+combining textual and visual information for predicting and generating popular meme descriptions.
+In Proceedings of the 2015 Conference of the North American Chapter of the Association for
+Computational Linguistics: Human Language Technologies, pages 355365, 2015.
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Fei Xia, Ed Chi, Quoc V Le, Denny
+Zhou, et al. Chain-of-thought prompting elicits reasoning in large language models. Advances in
+neural information processing systems, 35:2482424837, 2022.
+Jinheng Xie, Weijia Mao, Zechen Bai, David Junhao Zhang, Weihao Wang, Kevin Qinghong Lin,
+Yuchao Gu, Zhijie Chen, Zhenheng Yang, and Mike Zheng Shou. Show-o: One single transformer
+to unify multimodal understanding and generation. arXiv preprint arXiv:2408.12528, 2024.
+13
+
+===== PAGE 14 =====
+
+Bo Xu, Tingting Li, Junzhe Zheng, Mehdi Naseriparsa, Zhehuan Zhao, Hongfei Lin, and Feng
+Xia. Met-meme: A multimodal meme dataset rich in metaphors. In Proceedings of the 45th
+international ACM SIGIR conference on research and development in information retrieval, pages
+28872899, 2022.
+Bo Xu, Junzhe Zheng, Jiayuan He, Yuxuan Sun, Hongfei Lin, Liang Zhao, and Feng Xia. Generating
+multimodal metaphorical features for meme understanding. In Proceedings of the 32nd ACM
+International Conference on Multimedia, pages 447455, 2024.
+Jiazheng Xu, Xiao Liu, Yuchen Wu, Yuxuan Tong, Qinkai Li, Ming Ding, Jie Tang, and Yuxiao
+Dong. Imagereward: Learning and evaluating human preferences for text-to-image generation. In
+Advances in Neural Information Processing Systems, 2023.
+Srishti Yadav, Zhi Zhang, Daniel Hershcovich, and Ekaterina Shutova. Beyond words: Exploring
+cultural value sensitivity in multimodal models. arXiv preprint arXiv:2502.14906, 2025.
+Ming Yan, Haiyang Xu, Chenliang Li, Junfeng Tian, Bin Bi, Wei Wang, Xianzhe Xu, Ji Zhang,
+Songfang Huang, Fei Huang, et al. Achieving human parity on visual question answering. ACM
+Transactions on Information Systems, 41(3):140, 2023.
+Chenhao Zhang and Yazhe Niu. Let androids dream of electric sheep: A human-inspired image
+implication understanding and reasoning framework, 2025. URL
+https://arxiv.org/abs/ 
+2505.17019.
+Han Zhang, Weichong Yin, Yewei Fang, Lanxin Li, Boqiang Duan, Zhihua Wu, Yu Sun, Hao Tian,
+Hua Wu, and Haifeng Wang. Ernie-vilg: Unified generative pre-training for bidirectional vision-
+language generation. ArXiv, abs/2112.15283, 2021. URL
+https://api.semanticscholar. 
+org/CorpusID:245634812.
+Zhuosheng Zhang, Aston Zhang, Mu Li, Hai Zhao, George Karypis, and Alex Smola. Multimodal
+chain-of-thought reasoning in language models. arXiv preprint arXiv:2302.00923, 2023.
+Chuyang Zhao, Yuxing Song, Wenhao Wang, Haocheng Feng, Errui Ding, Yifan Sun, Xinyan Xiao,
+and Jingdong Wang. Monoformer: One transformer for both diffusion and autoregression. arXiv
+preprint arXiv:2409.16280, 2024.
+Zhanhui Zhou, Jie Liu, Jing Shao, Xiangyu Yue, Chao Yang, Wanli Ouyang, and Yu Qiao. Beyond
+one-preference-fits-all alignment: Multi-objective direct preference optimization. In Findings of
+the Association for Computational Linguistics: ACL 2024, pages 1058610613, 2024.
+Haohao Zhu, Junyu Lu, Zeyuan Zeng, Zewen Bai, Xiaokun Zhang, Liang Yang, and Hongfei Lin.
+Commonality and individuality! integrating humor commonality with speaker individuality for
+humor recognition. arXiv preprint arXiv:2502.04960, 2025a.
+Jinguo Zhu, Weiyun Wang, Zhe Chen, Zhaoyang Liu, Shenglong Ye, Lixin Gu, Hao Tian, Yuchen
+Duan, Weijie Su, Jie Shao, et al. Internvl3: Exploring advanced training and test-time recipes for
+open-source multimodal models. arXiv preprint arXiv:2504.10479, 2025b. 
+14
+
+===== PAGE 15 =====
+
+A Related Works
+A.1 Evolution of Vision-Language Models for Multi-modal Process
+The pursuit of unified vision-language modeling has progressed through three distinct phases of ar-
+chitectural innovation. Early foundational work established bidirectional frameworks for cross-modal
+understanding: ERNIE-ViLG [Zhang et al., 2021] and the Unifying Multi-modal Transformer [Huang
+et al., 2021] pioneered transformer-based architectures that jointly optimized text-to-image and image-
+to-text generation through multi-modal tokenization and autoregressive objectives. Concurrently,
+Zero-Shot Text-to-Image Generation [Ramesh et al., 2021] demonstrated the scalability potential of
+such approaches through their zero-shot text-to-image generation framework, establishing critical
+baselines for large-scale multi-modal pretraining.
+Contemporary breakthroughs have redefined architectural paradigms through multimodal unification.
+Models like Show-o [Xie et al., 2024] and MonoFormer [Zhao et al., 2024] successfully fused
+autoregressive and diffusion mechanisms within singular architectures via shared attention layers.
+Beyond architectural fusion, recent research highlights the critical role of reasoning strategies.
+Chain-of-Thought (CoT) prompting has been empirically shown to enhance the complex reasoning
+capabilities of VLMs by eliciting intermediate rationales [Zhang et al., 2023, Hu et al., 2024].
+Building upon these advancements, our work leverages multi-modal comprehension capabilities to
+address the unique challenges of meme generationparticularly its requirement for hierarchical
+reasoning and understanding subjective humor.
+A.2 Meme Analysis, Generation, and Alignment
+Humor Analysis and Generation. Computational humor draws from established linguistic and
+anthropological theories [Apte, 1985, Binsted et al., 2006] to formally model incongruity and semantic
+shifts. Internet memes have emerged as a vital component of digital culture, prompting substantial
+scholarly attention to their multi-modal communications. Extensive research has focused on analyzing
+topics [Du et al., 2020], semantics [Xu et al., 2022], and emotions [Sharma et al., 2020] conveyed in
+memes. The evolution of meme generation techniques has progressed through distinct technological
+phases. Initial systems employed rule-based architectures, exemplified by Oliveira et al. [2016]'s
+template-driven approach using standardized structures like "One does not simply X", and Wang and
+Wen [2015]'s dual-channel model integrating textual and visual features. The advent of deep learning
+catalyzed more sophisticated paradigms. Peirson and Tolunay pioneered this transition with Dank
+Learning [Peirson V and Tolunay, 2018], combining Inception V3 image encoders with attention-
+enhanced LSTM decoders. Subsequent innovations introduced transformer architectures: Sadasivam
+et al.'s MemeBot [Sadasivam et al., 2020] and Vyalla et al.'s Memeify [Vyalla and Udandarao, 2020]
+demonstrated enhanced text-image alignment through multi-modal fusion.
+Recent breakthroughs leverage large language models (LLMs) and VLMs to achieve unprecedented
+scale. Memecraft [Wang and Lee, 2024] enables targeted meme creation for social advocacy.
+Addressing multi-image complexity, Chen et al. proposed XMeCap [Chen et al., 2024b], introducing
+a two-stage framework with supervised fine-tuning guided by novel similarity metrics. Concurrently,
+benchmark datasets have emerged to evaluate capabilities. MemeCap [Hwang and Shwartz, 2023]
+provides metaphor annotations, while the New Yorker benchmarks series [Hessel et al., 2023] assess
+humor comprehension through caption matching and explanation tasks. The MCC dataset [Sharma
+et al., 2023] further incorporates external knowledge for abstraction analysis.
+Retrieval, Preference Optimization, and Our Scope. Retrieval-based meme adaptation, template
+mining, and trend tracking are useful components for practical meme-generation systems because
+they supply external context, such as similar meme usages, recent cultural references, or concrete
+exemplars. HUMOR is complementary to these system-level mechanisms: retrieval provides addi-
+tional context, while HUMOR improves how the underlying VLM interprets a template, explores
+multiple plausible contexts, and selects outputs under group-local preference signals. This distinction
+is important because simply exposing a VLM to meme-related information does not fully solve
+metaphor, humor, or multimodal-intent reasoning, as prior meme-understanding benchmarks con-
+tinue to show substantial model failures [Hessel et al., 2023, Hwang and Shwartz, 2023]. Standard
+preference-optimization methods such as RLHF/DPO [Ouyang et al., 2022, Rafailov et al., 2023]
+motivate our alignment stage, but they typically assume a more globally comparable preference
+15
+
+===== PAGE 16 =====
+
+signal. HUMOR instead makes local comparability explicit and operationalizes it through within-
+group pairwise reward modeling. Similar local-preference structures also appear beyond memes, for
+example in prompt-conditioned image preference datasets such as Pick-a-Pic [Kirstain et al., 2023]
+and ImageReward [Xu et al., 2023], and in persona-conditioned captioning [Shuster et al., 2019].
+While capability has scaled, aligning models with subjective human preferences remains a critical
+frontier. Unlike objective tasks with ground-truth, humor and creativity require modeling diverse
+and often noisy judgments. Recent works have begun to address this by aligning models with
+diverse human values [Zhou et al., 2024] and exploring personalized or pluralistic strategies [Feng
+et al., 2024]. Specifically in the domain of humor, Song et al. [2025] highlight the challenges of
+modeling subjective humor preferences using LLMs. Our work advances this direction by proposing a
+group-wise preference formulation, mitigating the noise inherent in cross-context humor comparison.
+B Hierarchical Chain-of-Thoughts of Metaphor
+To enhance our model's understanding of humor, we replicated the human meme creation process.
+Through extensive analysis of human meme creation, we extracted a paradigm for hierarchical meme
+feature analysis.
+Take the "Distracted Boyfriend" meme as an example. Humans first capture: the delighted expression
+of the woman on the left, the action of the man in the center looking back and his subtle flirtatious
+gaze, the annoyed posture of the woman on the right, and the triangular compositional relationship and
+explicit emotional direction formed by the three individuals. Humans further abstract this scene and
+discover that it can be applied to any scenario of infatuation with something new and abandonment of
+the old, establishing entity mapping relationships. Thus, when the user's request is workplace culture,
+this template can be adapted to depict a leader being attracted by a new employee during a meeting,
+with a senior employee showing an expression of helplessness, vividly illustrating the workplace
+"new vs. old" relationship and generating humor.
+How would humans fill in the text? Through statistical analysis of 5,000 classic memes, we found
+that the text positions in common meme templates are fixed, and the text content is highly correlated
+with its position. For instance, in the "Distracted Boyfriend" template, the position corresponding to
+the woman on the right is often used to represent the neglected object, the position corresponding
+to the man in the center represents the subject of attention shift, and the position corresponding to
+the woman on the left is the newly focused entity. Therefore, we integrate "text content generation"
+and "text position allocation" in the meme generation process. By annotating text box positions
+in the image, the model only needs to use its inherent visual localization ability to find the boxes,
+understand that text needs to be written in specific areas, and then combine spatial semantic mapping
+relationships to generate text with greater humorous effects in these positions.
+We aim to imitate this thought process to construct Chain-of-Thought (CoT) data:
+Data Collection and Preprocessing
+Meme Images We collected over 4,000 meme images from public dataset [Xu et al., 2024], and
+established a multi-dimensional labeling system:
+1. Emotion Classification: Covers 7 basic emotions and intensity levels.
+2. Intent Detection: Differentiates between 10 creation intents such as offense and entertainment.
+3. Metaphor Analysis: Records metaphorical entities and cross-domain mapping relationships.
+Safety-Driven Dataset Cleaning. To mitigate potential risks within the raw datasetsuch as
+political bias, sexually explicit content, and sensitive themes like discriminationwe implemented
+an automated filtering protocol leveraging the intrinsic safety guardrails of the VLM API (e.g.
+doubao-1.5-vision-pro
+). Specifically, during the image understanding phase, we prompted the
+API to interpret each meme. We adopted a "refusal-based" criterion: instances where the API
+triggered a safety warning or refused to generate a response were flagged as containing harmful or
+negative content. These samples were systematically excluded from our training corpus to ensure
+compliance with ethical safety standards.
+16
+
+===== PAGE 17 =====
+
+Base Images and Text Content/Position Information The FLUX.1-dev-Controlnet-Inpainting-
+Beta model is used to erase and restore the text areas in original memes, obtaining text-free base
+images. Meanwhile, OCR technology precisely records the (position, content) pairs of text, providing
+spatial semantic data for subsequent training.
+User Requirements We reconstructed user requirements in reverse using APIs. Taking the meme's
+labels and final text as inputs, we utilized prompts to reverse-engineer the user's initial request.
+We analyzed the following dimensions of user requirements: emotion category, emotion intensity,
+intention, Scene or theme , style preference, and keywords.
+CoT Data Generation
+Stage One Using the base image as input, we extract high-level semantics of the meme.
+First, we perform visual element decomposition. Our framework systematically deconstructs meme
+templates from four key visual dimensions:
+1.
+Main Subject Characteristics: Analyze facial expressions, poses, clothing, and dynamic rela-
+tionships between characters.
+2. Composition Logic: Identify visual focal points, color contrasts, and spatial relationships.
+3. Cultural Markers: Recognize identifiable meme formats and pop culture references.
+4. Narrative Threads: Interpret body language implications and prop symbolism.
+Then, we conduct scenario association and humor construction based on visual analysis:
+1.
+Social Contexts: Identify scenarios suitable for group chats, comment sections, and private
+conversations.
+2.
+Topic Relevance: Establish connections with workplace culture, life dilemmas, and internet
+hotspots.
+3.
+Emotional Mapping: Determine appropriate humor techniques, including satire, self-deprecation,
+exaggeration, and contrast.
+Stage Two Using the base image analysis from Stage One, user requirements, and final text as
+inputs, we infer the customized creation process for specific requests.
+We provide few-shot examples of this parsing process. For instance, for the "Distracted Boyfriend"
+meme, when Stage One yields the semantic pattern of infatuation with something new and aban-
+donment of the old, and identifies three entity positions: A [attention-shifting subject], B [newly
+focused entity], and C [neglected object], the user's request is a technology theme with the keyword
+"Apple fanatic." We consider how to align the expression of infatuation with something new and
+abandonment of the old with the context of technology product updates to reflect being an Apple
+fanatic. We infer that the semantic mapping of new and old phones is similar. Therefore, combining
+this image, we deduce that the text should be filled as: "A: APPLE FANS, B: IPHONE 11, C:
+IPHONE 10," humorously expressing enthusiasm for Apple's new technological products.
+Training Rationale and Process We conduct instruction-tuning training using CoT data as su-
+pervisory signals. Since our training data contains numerous instances of the same base image,
+the two-stage CoT process essentially learns metaphorical semantic relationships across different
+scenarios. It is a divergent associative thinking training where one base image corresponds to multiple
+scenarios. This CoT approach not only enables the model to understand the high-level semantics of
+the image itself but also establishes multi-scenario associative capabilities.
+Determination and Extraction of Generated Text Format Text boxes in the image are marked
+using a top-to-bottom, left-to-right coordinate sorting rule, and text content is recorded in the labels in
+order and in box format. The prompt explicitly requires the model to output in the format "box1:text1,
+box2:text2."
+Critical Comparison: Direct vs. Hierarchical CoT The direct approach of generating chains
+of thought from the original image is essentially reverse engineering rather than genuine reasoning.
+It suffers from four critical flaws: 1) No Genuine Discovery: it skips the exploratory stage where
+humor emerges from active associative search, jumping straight to a fixed answer; 2) No Layered
+17
+
+===== PAGE 18 =====
+
+Figure 7: Comparison between direct CoT generation from the original image and our hierarchical
+CoT generation approach.
+Abstraction: it leaps from raw visual details to a specific conclusion without building transferable
+intermediate metaphors; 3) No Reasoning, Just Justification: instead of true inference, it merely
+defends a predetermined conclusion.
+In contrast, our layered CoT framework mirrors human reasoning by progressively abstracting from
+visual description to general metaphorical patterns and then to domain-specific humor instantiations,
+thereby enabling genuine creativity and robust generalization.
+
+Figure 8: Examples of memes common on the internet
+C Reward Modeling: Assumptions and Proofs
+C.1 Setup and Assumptions
+For a fixed group
+G
+, the latent humor functional is
+h
+G
+: G ! [0; 1]
+. Pairwise labels follow the
+observation model of Eq. (1):
+Pr[m
+i
+ m
+j
+j G] = fl
+
+h
+G
+(m
+i
+)  h
+G
+(m
+j
+)
+
+;
+where
+fl : R ! (0; 1)
+is strictly increasing. A reward model maps a meme
+m = (I; c)
+to a score
+s
+
+(m); the pairwise probability is
+^p
+G
+ij
+= 
+
+s
+
+(m
+i
+)  s
+
+(m
+j
+)
+
+;
+and
+
+is learned by minimizing the empirical pairwise cross-entropy
+L
+pair
+. We assume (A1) the data
+contains i.i.d. pairs drawn within
+G
+with non-degenerate coverage; (A2) the model class for
+s
+
+is rich
+enough to fit the Bayes-optimal decision boundary; (A3) identifiability is up to an additive constant
+per group (sufficient for ranking).
+C.2 Rank Consistency (Proposition 1)  Proof
+Proposition (Rank consistency (main text Proposition 1)). Under Eq. (1) with strictly increasing
+fl
+,
+any risk minimizer of the logistic pairwise loss recovers the same within-group ordering as h
+G
+. 
+18
+
+===== PAGE 19 =====
+
+Proof. Let
+
+ij
+= Pr[m
+i
+ m
+j
+j G] = fl(
+ij
+)
+with
+
+ij
+= h
+G
+(m
+i
+)  h
+G
+(m
+j
+)
+. The Bayes-optimal
+pairwise classifier for logistic loss satisfies (s
+?
+i
+ s
+?
+j
+) = 
+ij
+, hence 
+s
+?
+i
+ s
+?
+j
+= 
+1
+(
+ij
+) = 
+1
+
+fl(
+ij
+)
+
+=:  (
+ij
+); 
+where   is strictly increasing as a composition of strictly increasing functions. Therefore
+s
+?
+i
+ s
+?
+j
+> 0 () 
+ij
+> 0 () h
+G
+(m
+i
+) > h
+G
+(m
+j
+): 
+Thus any minimizer (up to additive constants) induces the same strict order as h
+G
+inside G. fl 
+C.3 Noise Robustness (Proposition 2)  Proof
+Proposition (Noise robustness (main text Proposition 2)). Let
+
+G
+ij
+= jh
+G
+(m
+i
+)  h
+G
+(m
+j
+)j
+. Suppose
+the learned classifier has average pairwise error
+"
+. If we split pairs into small-margin (
+
+G
+ij
+< 
+)
+and large-margin (
+G
+ij
+ ), then the reversal probability obeys
+Pr[reversal]  Pr[
+G
+ij
+< ] + Pr[reversal j 
+G
+ij
+ ] 
+ Pr[
+G
+ij
+< ] + "
+
+(6)
+where
+"
+
+decreases as
+
+increases and increases with the classifier error
+"
+; in particular, under the
+observation model Eq. (1), the conditional flipping probability on large-margin pairs is upper-bounded
+by a monotonically decreasing function of .
+Proof. Let
+K
+be the event classifier reverses the true order. Decompose by a margin threshold
+ > 0:
+Pr[K] = Pr[K ^ (
+G
+ij
+< )] + Pr[K ^ (
+G
+ij
+ )]  Pr[
+G
+ij
+< ] + Pr[K j 
+G
+ij
+ ]:
+The second term is at most the classifier's conditional error on large-margin pairs, denoted
+"
+
+. Under
+Eq. (1), the Bayes error on a pair decreases monotonically with
+j
+G
+ij
+j
+, hence
+"
+
+decreases in
+
+. If
+the global average error is
+"
+, then
+"
+
+ "
+and often much smaller. Thus large true gaps are stably
+preserved, while flips concentrate on small-margin pairs. fl
+C.4 From Pairwise to Group Ranking (EBC)
+Given sparsity, we aggregate pairwise probabilities into a within-group ranking via Expected Borda
+Count (EBC): each item's score equals its expected number of wins against others according to
+^p
+G
+ij
+.
+EBC is a monotone transformation of the empirical pairwise preferences and inherits rank consistency
+in expectation when the pairwise model is consistent, providing a coherent group-wise order for
+evaluation and optimization. (Operational details as in Sec. 4.2.)
+D Group-wise Policy Optimization (GRPO): Guarantees and Proofs
+D.1 Objective and Notation
+For a candidate set S
+G
+with group ranking distribution q
+G
+(from EBC), the GRPO loss is 
+L
+GRPO
+() = E
+(I;G)
+h
+
+X
+m
+k
+2S
+G
+q
+G
+(m
+k
+) log 
+
+(c
+k
+j I)
+i 
++  E
+I
+fi
+KL
+
+
+
+( j I) k 
+ref
+( j I)
+fl
+(7)
+Intuitively, the first term pushes
+
+
+toward
+q
+G
+within the group (listwise), and the KL term limits drift
+from a safe reference policy
+
+ref
+; both are group-local, matching comparability in our formulation
+(Sec. 3).
+D.2 Bounded Degradation via KL Control
+We formalize the cannot degrade beyond a bounded amount claim under bounded KL.
+19
+
+===== PAGE 20 =====
+
+Proposition (Bounded change under GRPO (main text Proposition 2)). Assume the reward model is
+rank-consistent (Proposition C.2) and
+h
+G
+2 [0; 1]
+. Let
+
+KL
+= E
+I
+fi
+KL
+
+
+
+( j I) k 
+ref
+( j I)
+fl
+. Then
+the expected within-group humor satisfies
+E
+(I;G)
+h
+E
+c
+
+(jI)
+h
+G
+
+(I; c)
+
+i
+ E
+(I;G)
+h
+E
+c
+ref
+(jI)
+h
+G
+
+(I; c)
+
+i
+
+q
+
+1
+
+2
+
+KL
+:
+Consequently, if GRPO enforces
+
+KL
+ 
+(by choosing
+
+or an explicit trust region), the expected
+humor cannot drop by more than
+p
+
+ =2
+. A rank-consistent
+q
+G
+encourages higher-
+h
+G
+captions, while
+the KL constraint makes any possible degradation explicit and bounded.
+Proof. For any fixed (I; G), Pinsker's inequality gives
+
+
+
+
+( j I)  
+ref
+( j I)
+
+
+TV
+
+q
+
+1
+
+2
+KL
+
+
+
+( j I) k 
+ref
+( j I)
+
+(8) 
+Since h
+G
+2 [0; 1], by the variational characterization of total variation for bounded functions,
+
+
+
+E
+
+
+[h
+G
+]  E
+
+ref
+[h
+G
+]
+
+
+
+
+
+
+
+
+ 
+ref
+
+
+TV
+
+q
+
+1
+
+2
+KL(
+
+k
+ref
+)
+(9)
+Averaging over
+(I; G)
+yields the stated bound. During GRPO, the cross-entropy term
+
+P
+q
+G
+log 
+
+(with rank-consistent
+q
+G
+) increases mass on higher-
+h
+G
+captions within the group, while the KL term
+keeps the deviation controlled. Thus expected humor cannot deteriorate beyond the Pinsker bound
+and, in practice, improves as the listwise alignment progresses. fl
+D.3 Discussion: Why Listwise q
+G
+Matters
+Because
+q
+G
+aggregates pairwise signals into a coherent group distribution consistent with
+h
+G
+'s
+ordering, the CE term directly performs a proximal step toward the better subset of captions without
+inventing any cross-group scale. This matches our problem scope and the guarantees in Sec. 4.24.3
+of the main text.
+E EBC Aggregation
+Definition (Expected Borda Count). Given a group
+G
+and a finite candidate set
+S
+G
+= 
+fm
+1
+; : : : ; m
+n
+g
+with pairwise preference probabilities
+bp
+G
+ij
+= Pr[m
+i
+ m
+j
+]
+, the Expected Borda
+Count of item m
+i
+is
+EBC
+G
+(m
+i
+) =
+n
+X
+j=1
+j6=i
+bp
+G
+ij
+:
+Ties or missing edges are handled by omitting terms (equivalently, treating
+bp
+G
+ij
+as undefined); in
+evaluation we normalize by the number of available opponents for m
+i
+.
+Basic properties. (i) If all
+bp
+G
+ij
+2 f0; 1g
+, EBC reduces to the classical Borda score (number of
+wins). (ii) If there exists a latent utility
+u : S
+G
+! R
+such that
+bp
+G
+ij
+= (u(m
+i
+)  u(m
+j
+))
+with strictly
+increasing
+
+, then sorting by EBC is order-equivalent to sorting by
+P
+j6=i
+(u(m
+i
+)  u(m
+j
+))
+; in
+particular, when gaps are consistent across pairs, the EBC order agrees with the order of
+u
+. (iii)
+Under independent edge noise and bounded missingness, the variance of
+EBC
+G
+(m
+i
+)
+decreases with
+the number of observed pairs, making the aggregate rank more stable than any single comparison.
+Listwise normalization (optional). For downstream use, one may define a soft distribution over
+S
+G
+via a temperature T > 0:
+q
+G
+(m
+i
+) =
+exp
+
+EBC
+G
+(m
+i
+)=T
+
+
+P
+n
+k=1
+exp
+
+EBC
+G
+(m
+k
+)=T
+
+;
+which converts EBC scores into smooth listwise targets for within-group reweighting. This preserves
+the group-local nature of the signal and avoids inventing cross-group scales.
+20
+
+===== PAGE 21 =====
+
+Algorithm 1 Expected Borda Count (matrix form)
+
+Require:
+Candidate set
+S
+G
+= fm
+1
+; : : : ; m
+n
+g
+; pairwise estimates
+bp
+G
+ij
+= Pr[m
+i
+ m
+j
+]
+(may be
+undefined); temperature T > 0 (optional); small-degree regularizer   0 (optional).
+Ensure: EBC scores EBC
+G
+(m
+i
+) for all m
+i
+; optionally soft listwise q
+G
+(m
+i
+). 
+1: Initialize EBC[i]   0 and deg[i]   0 for all i 2 f1; : : : ; ng.
+2: for i = 1 to n do
+3: for j = 1 to n do
+4: if i = j then
+5: continue
+6: end if
+7: if bp
+G
+ij
+is defined then . omit ties/missing edges
+8: EBC[i]   EBC[i] + bp
+G
+ij 
+9: deg[i]   deg[i] + 1
+10: end if
+11: end for
+12: end for
+13: for i = 1 to n do . unbiased normalization under sparsity
+14: if deg[i] > 0 then
+15: EBC[i]  
+EBC[i] + 
+
+deg[i] + 
+.  prevents overconfidence at tiny degree 
+16: else
+17: EBC[i]   0
+18: end if
+19: end for
+20: if T is provided then
+21: compute q[i]   exp(EBC[i]=T ) for all i, then Z  
+P
+k
+q[k] 
+22: return (EBC[i]; q[i]   q[i]=Z) for all i
+23: else
+24: return EBC[i] for all i
+25: end if
+
+Notes on implementation. We compute
+bp
+G
+ij
+only within groups and on the (usually small) candidate
+sets used for evaluation or optimization. When the pair graph is sparse, we keep EBC unbiased by
+summing over observed opponents and normalizing by their count; when required, we add small-
+degree regularization to avoid over-confident ranks for items with very few edges. The pseudocode is
+shown in the Algorithm 1
+F Pair-wise Dataset Construction
+Our reward model is trained on pairwise comparisons. Intuitively, pairs whose ordering is both reliably
+correct and increasingly challenging drive the model toward more consistent ranks. We therefore
+construct a curriculum of five difficulty tiers, guaranteeing correct orderings while progressively
+raising difficulty (from trivial mismatches to near-ties within the same template/scene). To span
+both trivial and subtle distinctions, we sample pairs across all tiers and upweight harder tiers during
+training, yielding a supervision signal that is confident yet discriminative:
+1.
+Wrong Text Meme (
+?
+): This is the most straightforward case, where the original text is replaced
+with unrelated content, completely removing the humor. This type of meme is easy for the model
+to classify as "non-humorous" and acts as a baseline.
+2.
+Wrong Location Meme (
+??
+): A slightly more complex case involves shifting the position of
+the text in the image. While the metaphor may still exist, the humor diminishes due to the
+misplacement of text. The model must learn that small positional changes can significantly impact
+the meme's humor, reflecting a higher degree of difficulty.
+3.
+Boring Meme (
+??
+): Here, the meme is altered to include a more mundane or less engaging version
+of the original text. This teaches the model to distinguish between "humorous" and "boring"
+versions of the same meme. Although the content still aligns with the original, the humor is less
+impactful, presenting a challenge for classification.
+21
+
+===== PAGE 22 =====
+
+Figure 9: Examples of training datasets with different difficulty tier
+4.
+Detailed Boring Meme (
+? ? ?
+): This is a more nuanced case where only one or two words are
+changed to make the meme less funny. Despite the minimal changes, the meme's humor is
+significantly affected. The classifier must be able to identify these subtle shifts in humor, marking
+this as a more difficult classification task.
+5.
+Generated Meme (
+?  ? ? ?
+): Finally, memes generated by the fine-tuned VLM represent the
+highest difficulty level. These memes are intended to be as humorous as the original meme,
+requiring the classifier to discern fine-grained differences in humor between the generated meme
+and the original. This provides the model with an opportunity to improve its sensitivity to subtle
+differences in meme quality.
+The example of the training dataset is shown in Figure 9. By constructing a dataset with pairs of
+memes across these varying levels of humor, we enable the classifier to learn not only to distinguish
+obviously bad memes from good ones but also to understand the nuanced differences that make one
+meme more humorous than another. This rich dataset plays a crucial role in refining the reward
+model, allowing it to classify memes based on subtle human preferences.
+We stratify training so each mini-batch contains an equal number from each tier.
+G Auxiliary Rewards for Reasoning-Path Optimization
+While optimizing toward the group-wise reward induced by the reward model (Sec. 3.2) is theoretically
+sufficient to improve the quality of generated memes, the reinforcement learning stage does not
+directly supervise the internal reasoning path
+r = (r
+tmpl
+; r
+scene
+)
+because the primary feedback is
+attached to the realized meme
+(I; c)
+. To explicitly shape the quality of the reasoning process itself,
+we introduce two auxiliary rewards that operate on r: a format reward and a content reward.
+G.1 Format Reward
+The format reward enforces structural completeness of the CoT to ensure that essential modules
+appear and are well-formed. It is computed by deterministic string/structure matching without using
+LLM-as-judge. Concretely, given a sampled reasoning trace r for (I; U ), we check:
+1.
+Presence of mandatory sections (e.g., a
+Comprehensive Description
+section that summa-
+rizes visual content and intended template-level intent).
+2.
+Two-stage structure (explicit evidence of both template-level intent and context-level grounding
+consistent with Sec. 3.1).
+3.
+Text-on-Meme box formatting (the
+Text on the Meme
+block must specify boxtext mappings
+consistent with the bounding boxes B = fb
+i
+g so that rendered text T = ft
+i
+g aligns with B). 
+22
+
+===== PAGE 23 =====
+
+Table 3: Content reward evaluation across different target quality levels. Keye-VL as judge exhibits
+the clearest monotonic trend, and is therefore adopted as our content reward model in RL.
+
+Source
+Model
+Target
+Score
+Qwen-VL Keye-VL Logits (Qwen)
+
+Qwen-VL
+0 0.692 0.209 0.498
+0.2 0.642 0.229 0.452
+0.6 0.678 0.096 0.383
+0.8 0.522 0.400 0.368
+1 0.630 0.478 0.387
+
+Keye-VL
+0 0.508 0.280 0.390
+0.2 0.695 0.653 0.379
+0.6 0.672 0.731 0.412
+0.8 0.674 0.769 0.388
+1 0.538 0.691 0.462
+
+The format reward
+R
+fmt
+(r) 2 [0; 1]
+is the normalized sum of satisfied checks. It shapes
+r
+toward
+complete and renderable reasoning without requiring any subjective judgment.
+G.2 Content Reward
+The content reward evaluates the informativeness and plausibility of the CoT content via an LLM-
+as-judge. We prompt an evaluation model to score
+r
+along four interpretable dimensions (e.g.,
+visual grounding, template intent clarity, metaphorical mapping, and punchline coherence), each
+with discrete bands (e.g., 1/4/7 points with band descriptors such as no object description / coarse
+description / detailed object attributes). Scores are summed and rescaled to R
+cnt
+(r) 2 [0; 1].
+However, prior work rarely verifies whether a visionlanguage reward signal is monotonic with
+respect to intended semantic quality. To ensure that our RL optimization is grounded on a reliable
+content metric, we systematically compare several candidate reward options.
+We construct five groups of captions whose intended content quality is controlled at target lev-
+els
+f0; 10; 30; 40; 50g
+. These groups are obtained by prompting two widely used multimodal
+LLMsQwen2.5-VL-7B and Keye-VL-8Bto generate CoT rationales and captions under pro-
+gressively stronger quality constraints. For each generated caption, we compute content reward using
+three scoring strategies: Qwen2.5-VL-7B scorer, Keye-VL-8B scorer, and Qwen2.5-VL-7B output
+logits, where the final score is calculated from the normalization of logits of each score token.
+In Table 3, we then examine whether the final reward values increase along with the intended
+quality levels. Across both data sources (Qwen-generated and Keye-generated), Keye-VL-8B as the
+judge exhibits the clearest monotonic trend: scores grow consistently as target quality increases. In
+contrast, Qwen2.5-VL-7B scoring shows weaker correlation, and normalized logits are noticeably
+noisy. Notably, Keye-VL-8B remains stable even when scoring content generated by another model,
+suggesting better cross-distribution generalization.
+These results indicate that Keye-VL-8B provides the most rank-consistent, semantically aligned
+content reward, and we therefore adopt it as the content reward model in our RL stage.
+Consistency and Reliability. We further validate the effectiveness of combining HUMOR-RM
+with this newly designed content reward for RL training. The degree of rank consistency inherently
+depends on the chosen base model: semantically stronger and better-aligned backbones (e.g., Keye-
+VL) yield more reliable results, whereas weaker models align less steadily. For a detailed selection of
+evaluation models and the consistency tests of this content reward, see Appendix K and the validity
+tests in Appendix I.
+G.3 Integration with GRPO
+Let
+s
+RM
+(m)
+denote the reward-model score that induces the group-wise ranking distribution
+q
+G
+via
+EBC in Sec. 3.2. For a candidate set
+S
+G
+= fm
+k
+= (I; c
+k
+)g
+with associated reasoning traces
+fr
+k
+g
+,
+we construct an augmented group-wise target
+~q
+G
+by combining the primary signal with auxiliary
+23
+
+===== PAGE 24 =====
+
+(a) Token count distribution
+
+(b) Sentiment score distribution
+
+(c) Top 20 keywords 
+Figure 10: Textual properties of meme captions in training dataset
+rewards on r
+k
+:
+~q
+G
+(m
+k
+) / exp
+
+1
+
+
+fi
+s
+RM
+(m
+k
+) + 
+fmt
+R
+fmt
+(r
+k
+) + 
+cnt
+R
+cnt
+(r
+k
+)
+fl
+ 
+s.t.
+X
+m
+k
+2S
+G
+~q
+G
+(m
+k
+) = 1
+(10)
+where
+ > 0
+is a temperature and
+
+fmt
+; 
+cnt
+ 0
+are weights. The GRPO objective in Eq.
+(4)
+is then
+used with q
+G
+replaced by ~q
+G
+.
+Remark (Isotonic shaping and theoretical guarantees). If
+(
+fmt
+; 
+cnt
+)
+are chosen such that Eq. 10 is an
+isotonic transformation of the reward-model ranking (i.e., it does not invert the order implied by
+s
+RM
+except to break ties among near-equal items), then the rank consistency guarantees stemming from
+Proposition 2 are preserved in expectation. Moreover, the KL-bounded improvement in Proposition 4
+continues to hold because the proof relies on boundedness of
+h
+G
+and a KL constraint, both unaffected
+by auxiliary shaping. In practice we set
+
+fmt
+; 
+cnt
+small and use them primarily as tie-breakers and
+regularizers over
+r
+, which empirically reduces variance and accelerates convergence without altering
+the main ordering.
+H Dataset Statistics and Analysis
+In this section, we provide a comprehensive analysis covering linguistic features, semantic content,
+and semantic diversity. These statistics validate that the dataset captures the nuanced, punchy, and
+diverse nature of internet humor required for training robust VLMs.
+H.1 Linguistic and Semantic Composition
+We first analyze the textual properties of the meme captions to ensure they align with the linguistic
+conventions of internet culture.
+Token Count Distribution: As illustrated in Figure 10a, the token count follows a log-normal
+distribution with a mean of 12.1 and a median of 10.0. This confirms that the dataset consists
+predominantly of concise, high-impact text, consistent with the short and punchy nature of memes.
+Sentiment Distribution: The sentiment analysis (Figure 10b) reveals a dominant Neutral class
+(
+69:8%
+), with balanced Positive (
+17:1%
+) and Negative (
+13:1%
+) tails. This heavy skew toward
+neutrality is expected and desirable; meme humor often relies on deadpan delivery or irony, where
+the text itself appears objective or factual, and the humor emerges only through the juxtaposition with
+visual context.
+Semantic Keywords: The top-30 keyword analysis (Figure 10c) confirms that the dataset is grounded
+in abstract emotional concepts rather than merely descriptive tags. Dominant keywords such as
+Humor, Frustration, Irony, and Disappointment indicate that the data captures the core thematic
+essence of relatable internet memes.
+Our data collection is designed to cover diverse in-the-wild meme usage rather than a single hand-
+crafted template family. The dataset is built from public meme data and contains over 4,000 meme
+24
+
+===== PAGE 25 =====
+
+images. In the training setting, we use 3,713 crawled memes, resulting in 3,345 training instances and
+368 test instances after filtering and preprocessing. In addition, we analyze 5,000 classic memes to
+study the relationship between template text positions and caption content. This construction provides
+broad template and usage variation while keeping the evaluation focused on English-language meme
+culture.
+H.2 Semantic Diversity and Rationality of Distance
+A critical quality of a high-quality meme dataset is paraphrastic diversitythe ability to express
+the same underlying template intent through varied textual realizations. To quantify this, we analyzed
+the distribution of semantic distances (1  Cosine Similarity) between captions within the dataset.
+
+(a) Histogram of Semantic Distances
+
+(b) Boxplot of Semantic Distances
+Figure 11: Analysis of Semantic Diversity. The distribution of semantic distances (defined as
+1  Cosine Similarity
+) exhibits a mean and median of 0.570. The concentration of data (
+54:5%
+)
+within the
+[0:5; 0:6]
+interval indicates a healthy balance: the captions are semantically related enough
+to share a theme, yet diverse enough to avoid trivial repetition.
+As shown in Figure 11, the distance metric follows a normal distribution with the following character-
+istics:
+
+Central Tendency: Both the mean and median are exactly 0.570, with a standard deviation
+of 0.067.
+
+The Goldilocks Interval
+[0:5; 0:6]
+: A significant majority of the data (
+52:5%
+) falls within
+this specific range.
+Rationality of the
+[0:5; 0:6]
+Range: We argue that this distance distribution is not only reasonable
+but indicative of a high-quality dataset for open-ended generation:
+1.
+Avoidance of Mode Collapse (
+> 0:1
+): A very low distance (e.g.,
+< 0:2
+) would imply that
+the dataset contains largely duplicate or repetitive captions, which leads to overfitting and lack
+of creativity. Our distribution shows virtually no mass in this region, confirming high lexical
+diversity.
+2.
+Semantic Coherence (
+< 0:9
+): A very high distance (e.g.,
+> 0:8
+) would suggest random or
+unrelated text. The maximum distance observed is 0.755, with the vast majority below 0.7,
+ensuring that the captions remain thematically grounded to the meme templates.
+3.
+Optimal Paraphrasing: The concentration at
+0:57
+represents an optimal middle ground where
+captions share the same latent humor or intent (lowering distance) but utilize distinct vocabulary
+and sentence structures (increasing distance). This supports our claim that the dataset facilitates
+learning robust, generalized humor representations rather than rote memorization.
+I Training settings
+I.1 CoT Supervised Fine-tuning settings
+The detailed experimental settings for CoT supervision and fine-tuning are shown in Table 4.
+25
+
+===== PAGE 26 =====
+
+Table 4: Training Setup
+
+Hyperparameter Value
+
+Finetuning Stage sft
+Finetuning Type lora
+LoRA Rank 128
+LoRA Target all
+Per Device Train Batch Size 1
+Gradient Accumulation Steps 8
+Learning Rate 3.0e-5
+Num Train Epochs 5.0
+LR Scheduler Type cosine
+Warmup Ratio 0.1
+bf16 true
+
+Dataset Eimage
+Total Dataset Size 3,713 crawled memes
+Training Instances 3,345
+Testing Instances 368
+CoT Generation Model doubao-1.5-vision-pro
+CoT Variants HUMOR-CoT, CoT with Single Path,
+CoT with Self-Improve, CoT with Subquestion
+
+Computational Overhead. The primary additional cost of our multi-path CoT approach stems
+from the longer reasoning sequences generated during inference. Empirically, our method generates
+approximately
+23fi
+more total output tokens compared to direct generation baselines. While this
+increases computational demands during inference, we consider this a worthwhile trade-off given
+the substantial improvements in humor diversity and quality demonstrated in Table 1. The extended
+reasoning process enables the model to explore multiple humorous angles and perform more nuanced
+template-caption alignment, which is critical for generating high-quality memes.
+I.2 Reward Model Training Settings
+Our reward model is implemented as a lightweight extension on top of the base visionlanguage
+models. Concretely, we take the final hidden embedding of the last transformer layer and append a
+two-way classification head. This simple design allows the model to learn preference signals while
+reusing the representational power of the pretrained backbone.
+Based on the dataset constructed in Appendix F, we train reward models using the LLaMA-Factory
+framework with the following backbones: Keye-VL, Qwen2.5-VL-7B, and Qwen2.5-VL-32B. All
+models are fine-tuned with LoRA (
+r
+= 8, lora target is all) to reduce memory and computation
+overhead. We adopt a learning rate of
+1 fi 10
+4
+, with a warmup ratio of 0.1. Each model is trained
+on a single NVIDIA A800 GPU.
+J Evaluation settings
+J.1 VLM evaluates experimental setup
+Evaluation Setup. For text generation, we set the temperature to 0 to ensure deterministic outputs.
+Objective textual evaluation includes three automatic metrics: (1) Similarity  cosine similarity
+between generated and reference captions computed using bge-base-en-v1.5, averaged over all
+368 test samples; (2) Distance  contextual robustness, measured by regenerating 50 samples
+with mismatched user contexts and averaging textual dissimilarity across three regenerations; (3)
+26
+
+===== PAGE 27 =====
+
+Human/AI Discriminability  binary classification by Gemini-2.5-pro judging whether each meme
+appears human-made, reported as the average human rate over 368 test memes.
+Metric Selection Rationale. Prior to finalizing our protocol, we conducted extensive experi-
+ments with standard automated metrics, including BLEU, ROUGE, and BERTScore. However, our
+analysis reveals that these metrics are ill-suited for evaluating humorous meme captions. When
+computed on human ground-truth datasets, these scores are exceedingly low (e.g., ROUGE-1: 0.0461,
+ROUGE-2: 0.0027, BLEU: 0.0025). This indicates minimal lexical overlap even among high-quality
+human-written punchlines, reflecting two inherent characteristics of memes: captions are often short,
+fragmentary, and intentionally non-literal. Since humor permits a wide range of valid expressions
+for the same visual stimulus, overlap-based metrics are unreliable in this domain. To address these
+limitations, we designed domain-specific quantitative metrics to form a complementary evaluation
+strategy.
+Objective textual evaluation includes three automatic metrics: (1) Similarity  cosine similarity
+between generated and reference captions computed using bge-base-en-v1.5, averaged over all
+368 test samples; (2) Distance  contextual robustness, measured by regenerating 50 samples
+with mismatched user contexts and averaging textual dissimilarity across three regenerations; (3)
+Human/AI Discriminability  binary classification by Gemini-2.5-pro judging whether each meme
+appears human-made, reported as the average human rate over 368 test memes.
+Human Evaluation. We conducted our human studies on Prolific as formal research tasks, enforc-
+ing strict eligibility filters to ensure cultural and linguistic consistency. Participants were required
+to be native English speakers with an approval rate
+
+70% and were compensated according to
+Prolific's fair-pay guidelines (
+
+£9/hr). Specifically, we recruited 30 qualified annotators for the
+general meme assessment (1) and 100 annotators for the group-wise MaxDiff ranking (2) to obtain
+robust preference signals. The available demographic entries for the general assessment indicate that
+annotators covered a broad adult age range rather than a narrow student population, included both
+male and female participants, and represented multiple ethnic backgrounds while remaining primarily
+within an English-speaking evaluation setting. We report these demographics only in aggregate form
+to preserve participant anonymity. For the general assessment, human raters independently evaluated
+35 memes per method on four dimensions: (1) Humor, (2) Readability, (3) Relevance to user
+input, and (4) Originality. Scores were averaged across raters and samples for each model.
+Multimodal VLM Evaluation. All multimodal evaluations used Gemini-2.5-pro. Captions were
+embedded into corresponding bounding boxes, and the model provided meme-level judgments from
+three perspectives: (i) human/AI discriminability, (ii) absolute scoring, and (iii) relative ranking.
+VLM Absolute Scoring. Each meme was evaluated individually on an absolute 15 scale under
+eight criteria: 1) Punchline Strength: clarity and impact of the joke/twist; 2) Context Robustness:
+generalizability across social contexts; 3) Humor Effectiveness: quality of humor, sarcasm, or self-
+mockery; 4) Spread Potential: universal appeal and memorability; 5) Emotional Resonance: capacity
+to elicit laughter, surprise, or empathy; 6) Cultural Fit & Relatability: alignment with audience
+familiarity; 7) Theme Relevance: consistency with keywords and intentions; 8) Image-Caption
+Relevance: coherence between text and image. For each meme, the mean of the eight scores was
+recorded as its overall score.
+VLM Ranking. For relative evaluation, six meme variants sharing the same base imageHUMOR-
+CoT, three CoT variants (Single Path, Self-Improve, Subquestion), In-the-wild Memes, and Text-Free
+Memeswere presented together. Gemini-2.5-pro was prompted to rank them jointly under the same
+eight criteria. Each group's results were averaged over 368 test cases to obtain mean rankings.
+J.2 MaxDiff Ordering
+Maximum Difference Scaling (MaxDiff), also known as bestworst scaling, is a widely used method
+in marketing science and preference elicitation Louviere and Woodworth [1991], Louviere et al.
+[2015]. In a typical MaxDiff task, respondents are repeatedly presented with small subsets of items
+(e.g., 35 candidates) and asked to indicate which option they consider the best and which the
+worst. Compared to traditional rating scales, MaxDiff provides more discriminative and reliable
+27
+
+===== PAGE 28 =====
+
+preference estimates because each choice yields two pieces of information: a positive preference for
+the selected best item and a negative preference for the worst.
+The required number of tasks in MaxDiff depends on the total number of items
+J
+to be evaluated and
+the subset size
+k
+. A common guideline is that each item should appear across multiple choice sets
+to ensure stable estimation. For example, using balanced incomplete block designs (BIBD), each
+respondent typically completes between
+3J
+
+k
+and
+5J
+
+k
+choice tasks to achieve acceptable reliability Orme
+[2010]. Thus, the total number of questions can be determined systematically to balance respondent
+burden and statistical efficiency.
+In our study, we adopted a MaxDiff-inspired procedure to construct human preference rankings over
+memes. Specifically, rather than asking annotators to rate memes on absolute scales, we designed
+tasks where memes were compared in small groups, and annotators selected the most and least
+humorous instances. Aggregating these bestworst choices yields a consistent human-validated
+ranking dataset, which serves as a training and evaluation benchmark for our reward model.
+J.3 Meme Ranking Results
+Figure 12 visualizes the top-5 memes extracted from the human-ranked dataset mentioned in Sec-
+tion 4.3. This evaluation set consists of distinct groups, where each group contains 15 meme variants
+sharing the same visual template and thematic context. The rankings were established via the MaxDiff
+tests described above: in each trial, human annotators were presented with a subset of three memes
+and asked to identify the most preferred and least preferred options. These discrete choices were
+then aggregated to produce a complete ranking for each template group.
+K VLM Evaluator Analysis and Human-Alignment Validation
+This appendix provides two complementary analyses regarding the use of Gemini-2.5-pro within our
+evaluation pipeline. First, we examine Gemini as a human-likeness evaluator used for computing
+the Human Rate metric (Appendix K.2K.4). This part analyzes evaluator selection, statistical
+reliability, and alignment with ground-truth labels. Second, we independently study Gemini's role
+as a group-wise ranking evaluator in the relative comparison setting of Fig. 4(b) (Appendix K.5).
+This ranking analysis is separate from Human Rate and validates that the VLM's relative judgments
+meaningfully correlate with human preference structures.
+K.1 Human Rate Definition
+Human Rate is computed as a binary human/AI discriminability task. Given a complete rendered
+meme, Gemini-2.5-pro judges whether it is more likely human-generated or AI-generated, and
+Human Rate reports the proportion of generated memes classified as human-like. This metric should
+not be interpreted as an absolute humor score. Instead, it measures human-likeness: whether the
+output avoids common AI-generation artifacts such as generic phrasing, over-polished captions, weak
+surprise, or poor cultural fit.
+This differs from VLM-based absolute humor scoring, which we find unreliable for subjective cross-
+template comparison. The validity of Human Rate is supported by our evaluator analysis: among six
+candidate VLMs, Gemini-2.5-pro obtains the highest AUC for human/AI meme discrimination, and
+its continuous human-likeness scores significantly correlate with true human/AI labels (Spearman
+ = 0:5932, p < 0:001).
+K.2 Evaluator Selection Analysis
+To ensure that Human Rate reflects genuine human-likeness rather than evaluator bias, we benchmark
+six candidate VLMs (Gemini-2.5-pro, Qwen2.5-32B, Qwen2.5-7B, InternVL3-8B, Keye-VL-8B, and
+GLM-4.1V-9B) on a held-out set containing 250 AI-generated and 300 human-created memes. We
+evaluate each model's discriminative ability via ROC-AUC (Fig. 13) and inspect its error characteris-
+tics at the operational threshold.
+Among all candidates, Gemini-2.5-pro demonstrates the most favorable profile:
+28
+
+===== PAGE 29 =====
+
+Figure 12: The Top-5 human-ranked memes in the datasets sharing the same templates.
+
+Highest AUC (0.7212), substantially outperforming the next-best model (Qwen2.5-32B:
+0.6082), indicating the strongest global separability between AI and human memes.
+
+Highest specificity (TNR = 0.97), meaning Gemini almost never misclassifies genuine
+human memes as AI. Since Human Rate measures the proportion of outputs judged as
+human-like, low-specificity evaluators (e.g., Qwen2.5-32B, GLM) would systematically
+penalize human memes, compressing model differences and making the metric unreliable.
+Alternative VLMs exhibit extremely low specificity (TNR = 0.150.56). Such evaluators would
+inaccurately depress Human Rate across all models.
+While Gemini's sensitivity is moderate (TPR = 0.404), this introduces a shared error floor a
+uniform tendency to classify part of the AI memes as human-like across all systemswhich does not
+distort relative comparisons.
+Overall, Gemini's combination of extremely high specificity, the highest AUC, and a shared sensitivity
+bias makes it the most suitable evaluator for computing Human Rate.
+29
+
+===== PAGE 30 =====
+
+Figure 13: Candidate VLM evaluators' ROC curves for AI vs. human meme classification. Curves
+plot TPR vs. FPR; star markers denote optimal thresholds (maximizing Youden index) and metrics.
+AUC (overall discrimination ability) is in the legend.
+K.3 Significance and Reliability Analysis
+Although the evaluator introduces a fixed non-zero error rate, this error applies uniformly to all
+evaluated models. Thus, pairwise differences in Human Rate remain reliable as long as they exceed
+this shared noise floor.
+To verify this, we conduct a two-proportion
+z
+-test comparing the rate at which HUMOR-CoT and
+the Qwen2.5-7B base model are labeled as human by Gemini-2.5-pro. The difference is highly
+significant (
+z = 5:81
+,
+p < 10
+8
+), confirming that the observed improvement cannot be explained by
+evaluator variability.
+We further validate stability by re-computing Human Rate across random subsets of the test set,
+where the relative ranking of all compared models remains unchanged. Together, these analyses
+demonstrate that Human Rate provides consistent and reproducible model comparisons.
+K.4 Human-Alignment Validation
+To assess how closely Gemini's human-likeness judgments match human perception, we conduct
+an independent human-labeling study on 30 memes (15 AI-generated, 15 human-generated). After
+removing one ambiguous sample, 29 items remain, each annotated by 2224 participants.
+Human annotator reliability Inter-annotator agreement is statistically significant but low (Fleiss'
+ = 0:1369, p < 0:001), reflecting the subjective nature of determining meme authenticity.
+Gemini alignment with true labels. Gemini's continuous scores correlate strongly with ground-truth
+labels (Spearman
+ = 0:5932
+,
+p < 0:001
+). Binary consistency varies with threshold: Cohen's
+ 
+30
+
+===== PAGE 31 =====
+
+Table 5: Compare qwen2.5-7B, 32B, with the results of reclassification of the model we trained on
+qwen2.5-7B for the sentiment, intent, theme, and style of user input
+
+Model
+RE-classification Accuracy"
+
+Emotion Intention Theme Style
+
+Qwen2.5-7B-Instruct 0.420 0.515 0.551 0.521
+Qwen2.5-32B-Instruct 0.571 0.611 0.616 0.603
+HUMOR-CoT 0.597 0.641 0.600 0.639
+
+improves from 0.1944 (threshold 0.5) to 0.3888 (threshold 0.9), alongside a corresponding increase
+in accuracy.
+Human judgments vs. true labels. Human judgments show weak negative agreement with ground-
+truth authenticity (
+Cohen's  = 0:4397, p < 0:05
+; Spearman
+ = 0:4493
+,
+p < 0:05
+), likely due
+to anthropomorphism and the difficulty of discerning AI-generated memes.
+Conclusion. Gemini aligns with ground-truth labels substantially better than human annotators, and
+its continuous outputs encode meaningful gradients of human-likeness. These findings, combined
+with its high specificity and top AUC, support using Gemini-2.5-pro as a reliable evaluator for Human
+Rate.
+K.5 Human Alignment of Gemini's Group-wise Ranking Evaluator
+To validate the relative ranking results in Fig. 4(b), we perform an independent human evaluation that
+mirrors the same group-wise comparison protocol described in Sec. 4.2. For five representative image
+groups (30 memes total), nine human annotators ranked the six meme variantsHUMOR-CoT, three
+CoT baselines, In-the-wild, and Text-Freeunder the same criteria rubric used by Gemini-2.5-pro.
+Each annotator produced one holistic ranking per group.
+We compute rank correlation between Gemini's and human rankings. Across the five groups, Gemini
+exhibits strong and consistent alignment with human preferences, with a mean Spearman correlation
+of 0.7188  0.2154 and Kendall's  of 0.6320  0.2269.
+These results confirm that the group-wise ranking in Fig. 4(b) captures preference structures also
+expressed by humans, providing quantitative evidence that the relative VLM evaluation is meaningful
+and not an artifact of evaluator noise. Combined with the preceding analyses, this supports the
+reliability of the Gemini-based ranking methodology used throughout our evaluation.
+L Supplementary Experiment Results
+L.1 VLM Classification Result
+To further examine whether our generated meme texts faithfully reflect the intended semantics of
+user input, we perform a reclassification experiment using a strong vision-language model (VLM) as
+an external evaluator. Specifically, we take the captions generated by each model and feed them into
+the same VLM classifier that was trained to recognize four major semantic axes: emotion, intention,
+theme, and style. The classifier outputs predicted labels for each axis, which are compared to the
+original user-specified categories to compute reclassification accuracy.
+Table 5 summarizes the results. HUMOR-CoT achieves the highest accuracy across all dimensions,
+surpassing both the Qwen2.5-7B-Instruct and the larger Qwen2.5-32B-Instruct baselines. This
+indicates that our hierarchical CoT fine-tuning not only improves humor expressivity but also
+enhances the faithfulness of generated texts to user intent. In particular, the improvement over the
+32B model suggests that structured reasoning contributes more effectively to semantic alignment
+than mere parameter scaling.
+31
+
+===== PAGE 32 =====
+
+Figure 14: Case study comparing Single-path and Multi-path Hierarchical CoT supervision in meme
+generation using the same Mr. Bean image. The single-path model reproduces the ground-truth
+reasoning chain, yielding literal and less contextual humor. The multi-path model, trained with
+multi-scenario associative reasoning, demonstrates improved contextual understanding and humorous
+transferability, producing text that creatively matches new user intents.
+32
+
+===== PAGE 33 =====
+
+L.2 Cross-Domain Pilot on Persona-Conditioned Visual Captioning
+To examine whether the HUMOR-style reasoning and group-wise selection procedure can be in-
+stantiated beyond meme generation, we conducted a small cross-domain pilot under the rebuttal
+timeline rather than a full transfer benchmark. We use persona-conditioned visual captioning based
+on Personality-Captions [Shuster et al., 2019]. Each group is defined by the same recovered image
+and the same personality trait, i.e.,
+G = (image; personality)
+. This setting matches the formulation
+in Sec. 2: outputs are open-ended captions, quality depends on subjective criteria such as engage-
+ment, persona consistency, visual grounding, and coherence, and pairwise comparisons are naturally
+meaningful within the same image-persona group.
+We sampled 20 recovered image-persona groups and used the same Qwen2.5-VL-7B-Instruct model
+for both methods. The direct baseline generates four captions directly. The HUMOR-style procedure
+first explores visual evidence, persona intent, and multiple plausible caption angles, and then generates
+four candidates under the same image-persona condition. Figure 15 provides representative qualitative
+examples.
+
+Figure 15: Qualitative examples from the persona-conditioned visual captioning pilot. For the same
+image-persona group, HUMOR-style multi-path reasoning explores different caption strategies before
+local selection.
+Table 6: Candidate diversity in the cross-domain pilot. distinct-1 measures word-level diversity,
+distinct-2 measures local bigram-level diversity, and average pairwise sentence distance measures
+semantic diversity in sentence-embedding space.
+
+Method #Groups distinct-1 distinct-2 Avg. sentence dist.
+
+Direct 20 0.734 0.960 0.507
+HUMOR-style multi-path 20 0.738 0.942 0.563
+
+As shown in Table 6, HUMOR-style generation slightly improves word-level diversity (0.734
+!
+0.738) and more clearly improves semantic diversity (0.507
+!
+0.563, about
++11:0%
+). distinct-2
+slightly decreases (0.960
+!
+0.942), so we do not claim uniform lexical diversity improvement.
+Instead, the result indicates that multi-path reasoning primarily broadens the space of high-level
+caption strategies: candidates move farther apart in sentence meaning, persona interpretation, and
+communicative angle under the same image-persona condition, rather than simply swapping local
+bigrams or increasing surface phrase variation.
+We also compare independent absolute rubric scoring with group-local pairwise judging. In absolute
+scoring, each candidate is scored independently on engagement, persona consistency, visual ground-
+ing, coherence, and overall quality. This scoring is not discriminative in our pilot: all 160 candidate
+33
+
+===== PAGE 34 =====
+
+captions receive 4.0 on every dimension. In contrast, group-local pairwise judging provides more
+informative preference signals.
+Table 7: Group-local pairwise preference results comparing the HUMOR-style selected caption
+against the direct selected caption.
+
+Judger #Groups HUMOR wins Ties HUMOR losses
+
+Qwen2.5-VL-7B-Instruct 20 14 0 6
+MiniMax-M3 20 12 3 5
+Step-3.7-Flash 20 10 9 1
+
+Across three judgers, HUMOR-style selected captions are preferred more often than direct selected
+captions: Qwen gives 14 wins vs. 6 losses, MiniMax-M3 gives 12 wins vs. 5 losses with 3 ties, and
+Step-3.7 gives 10 wins vs. 1 loss with 9 ties. The Step-3.7 result is weaker because many cases are
+tied, and this pilot uses only the reasoning and selection component rather than full HUMOR reward-
+model training. We therefore treat the result as directional evidence rather than a full cross-domain
+generalization claim. Still, the pilot supports two core points of the framework: absolute scoring
+can be poorly discriminative for subjective multimodal generation, while local pairwise comparison
+within semantically coherent groups can provide useful preference signals beyond the meme domain.
+M Limitations and Societal Impact
+This section provides a self-critical analysis of the HUMOR framework, its underlying model
+HUMOR-RM, and the potential broader impacts of our work.
+M.1 Inference Latency and Computational Cost
+As detailed in Section 3.1 and Appendix I, the hierarchical multi-path CoT mechanism requires
+the model to generate structured reasoning trajectories before yielding the final punchline. While
+this "thinking" process is essential for the logical leap required by humor, it incurs a computational
+overhead of approximately
+2fi
+to
+3fi
+more tokens than standard VLM captioning. This latency may
+hinder real-time deployment on mobile devices. Future work could explore Early Exit strategies to
+bypass reasoning for simpler visual stimuli.
+M.2 Cultural and Linguistic Specificity
+Humor is intrinsically tied to cultural context, slang, and shared history. Our training data [Xu et al.,
+2024] is primarily composed of English-language internet memes. Accordingly, our empirical results
+should be read as evidence within an English-speaking meme setting, not as a universal measurement
+of humor across all cultures. At the same time, the HUMOR framework itself does not rely on
+language- or culture-specific assumptions: it requires coherent groups and reliable within-group
+preferences. Extending the data collection, reward validation, and human evaluation to multilingual
+and multicultural meme communities is an important direction for future work.
+M.3 Failure Modes
+Despite the anchoring mechanism described in Proposition 1, qualitative reviews (see Appendix N.5
+for failure cases) indicate that the model occasionally fails to generate a humorous incongruity when
+the input image is highly complex or visually cluttered. In these cases, the CoT tends to default to
+literal description rather than finding a creative twist. This suggests that the model's "creativity" is
+still bounded by the diversity of its pre-trained visual-linguistic associations.
+M.4 Broader Societal Impact and Safety
+The ability to automate humor generation carries risks. Memes are frequently used for political
+satire, which can border on misinformation or harassment. Although we utilized Gemini-2.5-pro as
+a risk judge (Section 4.3) to filter out hate speech and sensitive content, adversarial prompts could
+34
+
+===== PAGE 35 =====
+
+potentially bypass these safeguards. We emphasize that HUMOR should be used as a tool for creative
+assistance rather than an autonomous content generator in sensitive domains.
+N Additional Generated Samples and Case Studies
+This appendix presents additional qualitative results related to the experiments in the main paper,
+including generated samples, risk cases, and failure analyses. These examples complement our
+understanding of HUMOR-CoT's behavior under different conditions. All samples are produced
+under the same test protocol and prompting settings as Fig. 4(b). Full evaluation prompts and system
+settings are provided in Appendix J.1.
+N.1 Generated Samples Across CoT Strategies
+To further analyze how different Chain-of-Thought (CoT) strategies affect meme generation, Figure 16
+visualizes representative outputs. Each row corresponds to a user-intent cluster (e.g., romance,
+Christmas, family tradition, delayed surprise). Each column shows one of the five outputs: In-the-
+wild (human-created reference), HUMOR-CoT, and three alternative CoT approaches (Single-path,
+Self-improve, Subquestion).
+From the comparison, HUMOR-CoT more accurately captures user-implied emotions and contextual
+nuances, better preserves alignment between visual content and textual humor, and overall produces
+more coherent and structurally sound meme captions than competing strategies.
+N.2 Generalization to Unseen Templates
+To verify HUMOR-CoT's ability to generalize to template formats entirely absent from training,
+we constructed 20 unseen meme templates and evaluated them using the same group-wise ranking
+protocol as Fig. 5. For each template, we jointly ranked outputs from HUMOR-CoT and five
+representative VLM generators using Gemini-2.5-pro as a comparative evaluator.
+As shown in Fig. 17, HUMOR-CoT consistently produces captions that remain semantically fitting,
+visually grounded, and logically humorous even under unseen template structures. This finding
+echoes the quantitative results in Fig. 5, suggesting that HUMOR-CoT generalizes across template
+styles rather than overfitting to specific training formats or humor patterns.
+N.3 Retrieval-Augmented Adaptation to Emerging Meme Trends
+Unseen visual templates are only one aspect of meme generalization; another challenge is evolving
+cultural meaning. To clarify the role of retrieval, we conduct a small qualitative case study in which
+recent meme-trend descriptions are retrieved and inserted into the prompt as additional context. This
+setup does not compete with HUMOR. Instead, retrieval supplies external and time-sensitive context,
+while HUMOR-style reasoning uses that context to interpret the visual template, explore plausible
+communicative intents, and generate captions under the local preference structure.
+We examine two recent trend descriptions. The first is Somebody get these beggars out of here,
+used as a reaction phrase when someone is perceived as begging, freeloading, or asking for something
+unreasonable. The second is the Reasons to get a bob trend, where the humor comes from a
+numbered list that repeats the same answer, e.g., a deliberately deadpan list of reasons that all reduce
+to one word. When these retrieved descriptions are added to the prompt, HUMOR-CoT can adapt the
+captioning strategy to the new usage: the model grounds the retrieved meme convention in the given
+image, identifies the intended social stance, and produces punchlines that follow the emerging trend
+format.
+This case study supports our scope clarification: if the goal is the strongest deployed meme-generation
+system, retrieval, template mining, and trend tracking are valuable additions. HUMOR focuses on
+the model-side capability and is orthogonal to these additions. Retrieved examples can be supplied as
+context, while HUMOR improves the VLM's reasoning, multi-context exploration, and group-local
+preference-aligned generation.
+35
+
+===== PAGE 36 =====
+
+Figure 16: Generation results of models trained with different CoT strategies.
+
+Figure 17: Unseen Template Generation. HUMOR-CoT generalizes well to templates entirely
+absent from training, producing humorous and contextually aligned captions.
+36
+
+===== PAGE 37 =====
+
+N.4 Risk Case Identification
+To further ensure the safety of HUMOR-CoT's meme generation process, we conducted a detailed
+analysis of high-risk cases under the same evaluation protocol used in Fig. 4(b). Certain user-
+provided tagsparticularly those involving political ideology, wartime historical figures, religious
+identity, gender topics, or dark cultural referencescan inadvertently lead the model toward unsafe
+or controversial outputs.
+To address this, we incorporate Gemini-2.5-pro as a dedicated risk auditor, applied to every generated
+meme before presenting the final output. The auditor evaluates political sensitivity, cultural offen-
+siveness, and overall dissemination risk, and blocks unsafe generations. Notably, only 3.3% of the
+memes generated by our model are classified as high-risk.
+Figure 19 presents two representative high-risk examples: Case 1: The user provides tags such as
+hate, dark, historical irony, etc. The generated meme juxtaposes a highly controversial political figure
+with a modern gender movement. This combination is flagged as high-risk because it may trivialize
+historical atrocities or imply derogatory gender-based associations. Case 2: Input tags include sorrow,
+entertainment, Gene Wilder, Hillary Clinton, etc. The generated meme incorrectly pairs an actor's
+photo with a political figure and a religiously sensitive theme, resulting in a medium-risk classification
+due to offensive misattribution and implied ideological framing.
+These examples highlight how subtle combinations of template imagery and user-provided tags can
+cause risk escalation. The auditor effectively surfaces such vulnerabilities and prevents them from
+influencing model outputs. Future work may incorporate training-time safety constraints so that
+generation itself avoids drifting into politically sensitive or harmful narratives.
+N.5 Failure Case Analysis
+Under the same generation protocol as Fig. 4(b), we also observe several consistent failure modes
+of HUMOR-CoT. These failures are not safety-related but rather stem from limitations in humor
+construction, scene preservation, and compositional reasoning.
+A common pattern is that when the user provides overly specific nouns or technical keywords, the
+model becomes overly constrained and abandons the richer humorous scenarios that HUMOR-CoT
+typically constructs. Instead, it defaults to lower-complexity strategies such as: literal interpretations,
+surface-level puns, direct keyword matching, loss of contextual coherence discarding previously
+inferred emotional tone or narrative structure. Figure 20 illustrates a representative case: The template
+depicts a simple cloud against a blue sky. The human-written meme uses a minimalist joke about
+expectations vs. reality (just a cloud), relying on contrast-based humor. However, given user tags
+such as technology, data ownership, and cloud storage, HUMOR-CoT interprets cloud literally and
+produces a caption like YOUR DATA IS IN THE CLOUD. Although semantically consistent, the
+output sacrifices the original humorous framing in favor of a straightforward technological pun. This
+behavior reveals an important shortcoming: When user inputs are highly concrete, the model tends to
+overweight those terms, collapsing toward literalism rather than maintaining a multi-step humorous
+scene construction. Strengthening scene preservation, implicit narrative consistency, and humor
+compositionality remains a key direction for improving robustness, especially under semantically
+narrow prompts.
+N.6 Real-World Application: Workplace Meme Generation
+To verify HUMOR-CoT's meme generation performance in real-world application scenarios, we
+select common office scenarios for demonstration. Workplace memes often capture relatable daily
+frustrations or contrasts (e.g., unreasonable demands, unmet expectations) via lighthearted humor,
+requiring alignment between emotional tags and visual-textual expression.
+All samples in Fig. 18 are generated under the same test protocol and prompting settings as
+Fig. 4(b). As shown in the figure, HUMOR-CoT accurately maps each tag set to a coherent narra-
+tiveperforming well across both single-panel (e.g., Case 1 and 2, which deliver targeted humor in
+a single panel) and multi-panel (e.g., Case 3, which builds contrast via sequential panels) formats.
+Case 1 reflects powerlessness against unreasonable requests, Case 2 satirizes time-consuming "short"
+meetings, and Case 3 contrasts idealized vs. harsh remote work experiences. The generated memes
+37
+
+===== PAGE 38 =====
+
+Figure 18: Workplace Meme Generation (Single/Multi-Panel). Real-world application examples
+for workplace scenarios, showing 3 cases with different emotional/contextual tags.
+balance relatable workplace context with meme-style humor, validating the model's ability to translate
+nuanced emotional tags into scenario-fitting content across different meme structures. 
+38
+
+===== PAGE 39 =====
+
+Figure 19: Risk example identification. Gemini-2.5-pro effectively flags politically sensitive or
+socially harmful meme generations. 
+39
+
+===== PAGE 40 =====
+
+Figure 20: Failure case analysis. When user-provided nouns are overly specific, the model may
+prioritize literal fit over humor, causing loss of scene coherence. 
+40
+
+===== PAGE 41 =====
+
+O Prompt
+O.1 Meme Generation Prompt
+
+Meme Generation Prompt
+
+**Meme Text Generation Framework**
+Based on the meme basemap and user input, analyze what can be written on it that
+meets the user's needs and is as humorous as possible.
+Input Parameters: [
+Emotion Category: labels['Emotion Category'],
+Emotion Intensity: labels['Emotion Intensity'],
+Intention Category: labels['Intention Category']
+Scene or Theme: ', '.join(labels['Scene or Theme']),
+Style Preference: labels['Style Preference'],
+Text Content Keywords: ', '.join(labels['Text Content Keywords']),
+]
+Please note that the emotion category given here may be the emotions of the
+characters in the diagram or the emotions that the user wants to express, so
+please be careful to differentiate and choose the appropriate understanding. -
+Phase 1: Base Image Analysis
+[Comprehensive Description Section]
+- **Visual Deconstruction**:
+- Primary subjects (demeanor/movement/apparel of entities)
+- Composition logic (focal points/color contrast/spatial relationships)
+- Cultural signifiers (recognizable meme formats/pop culture references)
+- Narrative cues (body language implications/prop symbolism)
+[Usage Scenarios Section]
+- **Scenario Modeling**:
+- Social contexts (group chats/comment sections/private conversations)
+- Topic alignment (workplace culture/life struggles/viral trends)
+- Emotional mapping (sarcasm/self-deprecation/absurdist/dark humor)
+- Cross-platform adaptation (short video captions/chat stickers)
+[Text Analysis Section]
+- **Humor Engineering**:
+- Wordplay (puns/homophones/semantic reversal)
+- Cognitive dissonance (expectation subversion/scale exaggeration/role mismatch)
+- Emotional resonance (generational gaps/life sorrow/cringe moments)
+- Format optimization (suspenseful opening line/punchline reversal/rhyme
+schemes)
+Phase 2: Customization Process
+[Specific Analysis with User Input]
+Step 1: Contextual Bridging
+- **Input Decoding**:
+- Quantify [Intensity] as dramatic escalation (0-10 scale)
+- Map [Intent] to visual elements' interactive potential
+- Establish connections between [Context/Theme] and meme formats
+
+41
+
+===== PAGE 42 =====
+
+Meme Generation Prompt (Cont.)
+
+Step 2: Humor Optimization
+- **Multidimensional Strategies**:
+- Tone calibration: Adjust phrasing sharpness using [Keywords]
+- Tension building: Create contrast between static imagery and dynamic text
+- Cultural alignment: Balance trending phrases with evergreen humor elements
+Text on the Meme:
+[Read the chart from top to bottom, from left to right in each red box should be
+put what text in turn, with box1: text fragment 1 box2: text fragment 2
+, there are several boxes to correspond to the output of a few paragraphs of the
+text corresponds to each other, here pay attention to the combination of the box
+in the map position, the meaning of the map, the user input, and the previous
+reasoning to generate the theme of the humor of the text.Do not repeat text in
+different boxes.]
+-
+Output Demonstration Example
+[Comprehensive Description Section]
+The image employs the classic "Shocked Cat" meme template, featuring
+a close-up of an orange tabby cat with dilated circular pupils and
+forward-stretched whiskers creating visual tension. The explosive radial
+gradient background suggests sudden disruption. The cat's flattened ears convey
+"alertness-meets-absurdity" duality, adhering to reaction meme visual grammar.
+[Usage Scenarios Section]
+Optimal use cases include:
+1. Social media rants about last-minute work demands
+2. Gaming group reactions to unexpected team failures
+3. E-commerce shoppers encountering bizarre product descriptions Ideal
+scenarios should follow "unexpected shock  exaggerated response" narrative
+structures
+[Text Analysis Section]
+Suggested text:
+"Friday 5:55 PM" (top line establishes time pressure)
+"Client says 'Just one more thing...'" (bottom line triggers conflict)
+Humor mechanisms: Amplifies workplace frustrations through the cat's dramatic
+expression, using cross-dimensional analogy between time constraints and animal
+reactions
+[Specific Analysis with User Input]
+Step 1: Given [Emotion: Frustration][Intensity: 8][Theme: Fitness failures],
+emphasize exaggerated body-text correlation. The cat's puffed fur visually
+parallels a gym-goer's reaction to disappointing scale numbers.
+Step 2: Implement absurd escalation: "When your trainer says" (setup)  "'One
+more rep' actually means 20" (absurd payoff). Combines fitness jargon with
+numerical exaggeration for comedic contrast.
+Text on the Meme:
+"When the pre-workout kicks in But your willpower checks out early"
+Now please generate the analysis and text results based on this image <image>
+and user input parameters.
+
+42
+
+===== PAGE 43 =====
+
+O.2 Reward Model Prompt
+
+Reward Model Prompt
+
+I am a senior Meme Critic with advanced reasoning skills, dedicated to analyzing
+both the visual and textual components of internet memes. My task is to not
+only describe the obvious elements but also to uncover the hidden metaphors,
+cultural references, and symbolic meanings that contribute to the meme's overall
+impact. I use a step-by-step reasoning process to evaluate these elements and
+determine which meme is more engaging.
+## Background
+- I excel at extracting key details from images and accompanying texts,
+considering emotional tone, humor, creativity, and context.
+- Beyond the superficial content, I focus on identifying and interpreting deeper
+metaphors, cultural allusions, and symbolic messages.
+- My judgment is based on a thorough chain-of-thought reasoning process that
+explains how each element interacts to form the meme's underlying message and
+overall impact.
+## Goals
+1. Detailed Analysis: Compare two given memes by breaking down their visual
+and textual elements.
+- Identify and describe the primary features in each meme.
+- Uncover and explain hidden metaphors, symbols, and cultural references.
+2. Chain-of-Thought Reasoning: Provide a clear, step-by-step explanation of
+how these elements interact and influence the meme's humor, creativity, and
+overall meaning.
+3. Final Judgment: Based on your analysis, output a binary score:
+- 1 if the first meme is determined to be better.
+- 0 if the second meme is determined to be better.
+
+43
+
+===== PAGE 44 =====
+
+O.3 Human Rate Evaluation Prompt
+
+Human Rate Evaluation Prompt
+
+You are a STRICT authenticity evaluator for meme images. Your task is to
+identify AI-generated content with HIGH accuracy. Be VERY CONSERVATIVE - when
+uncertain, always choose AI-generated.
+Carefully analyze the relationship between the text and image, the language
+style, word choice, emotional expression, and sentence coherence. Pay EXTRA
+attention to subtle AI characteristics.
+CRITICAL AI-Generated Indicators (assign LOW score, 0.0-0.3):
+1. Weak text-image relationship: The text and image feel disconnected,
+awkwardly combined, or only loosely related. The text doesn't naturally and
+meaningfully relate to what's shown in the image. If the connection is weak or
+superficial  AI.
+2. Unnatural embedding: It looks like AI simply added text to an image, with
+the text feeling artificially inserted, pasted on, or mechanically placed rather
+than organically integrated. If it feels "added" rather than "created together"
+ AI.
+3. Template-like language: The language is overly formal, written in a
+template style, lacks vividness, or uses formulaic expressions. If it reads
+like a template or generic text  AI.
+4. Repetitive vocabulary: Words are monotonous, mechanical, or show repeated
+use of certain words/phrases. Even slight repetition can indicate AI  AI.
+5. Flat emotional expression: Emotions are steady, bland, or lack the natural
+ups and downs typical of human writing. If emotions feel flat or artificial 
+AI.
+6. Phrase splicing: The text feels like phrases were forcibly pieced together,
+with sentences that feel artificially constructed, lack natural flow, or have
+awkward transitions  AI.
+STRONG Human-Created Indicators (assign HIGH score, 0.7-1.0 ONLY if ALL are
+clearly present):
+7. Strong text-image relationship: The image CLEARLY and MEANINGFULLY
+represents the text's meaning, or the text EFFECTIVELY maps to the image's
+theme. They complement each other in a way that shows genuine understanding
+and creativity.
+8. Natural embedding: The text and image are integrated NATURALLY and
+ORGANICALLY, like typical human-created image captions that feel perfectly
+matched and thoughtfully crafted.
+9. Vivid language: The language is TRULY lively and expressive, with
+appropriate connecting words, rich expressions, and natural variation.
+
+44
+
+===== PAGE 45 =====
+
+Human Rate Evaluation Prompt (Cont.)
+
+10. Varied vocabulary: NO repetition whatsoever. Word choice is diverse,
+natural, and shows genuine linguistic creativity.
+11. Emotional variation: Emotions show CLEAR ups and downs, with genuine
+emotional output, authentic attitudes, or real opinions about things.
+12. Smooth coherence: Sentences flow SMOOTHLY and LOGICALLY, with natural
+meaning progression. No hint of phrase splicing or artificial construction.
+STRICT Evaluation Guidelines:
+- BE EXTREMELY CONSERVATIVE: When in doubt, ALWAYS lean towards AI-generated
+(lower score)
+- If you observe ANY AI-generated indicator, even slightly  assign LOW score
+(0.0-0.3)
+- If text-image relationship is weak or unclear  assign LOW score (0.0-0.3)
+- If embedding feels even slightly unnatural  assign LOW score (0.0-0.3)
+- Only assign high scores (0.7-1.0) when ALL human-created indicators are
+STRONGLY present
+- Medium scores (0.4-0.6) should be RARE - only for truly ambiguous cases
+- Text-image relationship and natural embedding are THE MOST IMPORTANT factors -
+if these are weak, it's almost certainly AI Scoring Rules:
+- 0.0-0.3 = Very likely AI-generated (shows ANY AI characteristics, weak
+text-image relationship, or unnatural embedding)
+- 0.4-0.6 = Uncertain/ambiguous (ONLY use when truly cannot determine - should
+be rare)
+- 0.7-1.0 = Very likely human-created (ONLY when ALL human indicators are
+STRONGLY present, especially strong text-image relationship and natural
+embedding)
+
+45
+
+===== PAGE 46 =====
+
+Human Rate Evaluation Prompt (Cont.)
+
+Remember:
+- If text-image relationship is not STRONG and MEANINGFUL  AI (score < 0.3)
+- If embedding feels even slightly artificial  AI (score < 0.3)
+- If language feels even slightly template-like or repetitive  AI (score < 0.3)
+- When uncertain  AI (score < 0.3)
+- Only give high scores when you are VERY CONFIDENT it's human-created with clear
+evidence
+Output ONLY a single number between 0 and 1.
+
+46
+
+===== PAGE 47 =====
+
+O.4 Ranking Prompt
+
+Ranking Prompt
+
+Evaluate meme images (same base image, different captions) with these user
+requirements:
+- Emotion Category: labels['Emotion Category']
+- Emotion Intensity: labels['Emotion Intensity']
+- Intention Category: labels['Intention Category']
+- Scene or Theme: ', '.join(labels['Scene or Theme'])
+- Style Preference: labels['Style Preference']
+- Text Content Keywords: ', '.join(labels['Text Content Keywords'])
+Images are mapped to simple names for clarity: {image_descriptions}
+Rank each meme across the following 10 dimensions (smaller number = better):
+1. Image-Caption Relevance: How well the text matches and enhances the image.
+2. Theme Relevance: Alignment with keywords/intentions.
+3. Emotional Resonance: Ability to trigger emotional response (laugh,
+surprise, empathy).
+4. Humor Effectiveness: How well caption achieves humor/sarcasm/self-mockery.
+5. Punchline Strength: Clarity and impact of the joke or twist.
+6. Cultural Fit & Relatability: How well it aligns with cultural context or
+audience familiarity.
+7. Context Robustness: Applicability across multiple social contexts.
+8. Spread Potential: Universal appeal, resonance, memorability.
+Return ONLY JSON with each dimension as a key:
+{
+"image_caption_relevance_ranking": {...},
+"theme_relevance_ranking": {...},
+"emotional_resonance_ranking": {...},
+"humor_effectiveness_ranking": {...},
+"punchline_strength_ranking": {...},
+"cultural_fit_ranking": {...},
+"context_robustness_ranking": {...},
+"spread_potential_ranking": {...}
+}
+
+47
+
+===== PAGE 48 =====
+
+O.5 Scoring Prompt
+
+Scoring Prompt
+
+Evaluate this meme image with these user requirements:
+- Emotion Category: labels['Emotion Category']
+- Emotion Intensity: labels['Emotion Intensity']
+- Intention Category: labels['Intention Category']
+- Scene or Theme: ', '.join(labels['Scene or Theme'])
+- Style Preference: labels['Style Preference']
+- Text Content Keywords: ', '.join(labels['Text Content Keywords'])
+Rate this meme image on a scale of 1-5 (where 1 = poor, 5 = excellent) across
+the following dimensions:
+Dimensions:
+1. Image-Caption Relevance: How well the text matches and enhances the image.
+2. Theme Relevance: Alignment with keywords/intentions.
+3. Emotional Resonance: Ability to trigger emotional response (laugh,
+surprise, empathy).
+4. Humor Effectiveness: How well caption achieves humor/sarcasm/self-mockery.
+5. Punchline Strength: Clarity and impact of the joke or twist.
+6. Cultural Fit & Relatability: How well it aligns with cultural context or
+audience familiarity.
+7. Context Robustness: Applicability across multiple social contexts.
+8. Spread Potential: Universal appeal, resonance, memorability.
+Return ONLY JSON with the exact keys shown above, each with a score from 1-5:
+{
+"image_caption_relevance_score": x,
+"theme_relevance_score": x,
+"emotional_resonance_score": x,
+"humor_score": x,
+"punchline_strength_score": x,
+"cultural_fit_score": x,
+"context_robustness_score": x,
+"spread_potential_score": x
+}
+
+O.6 Cross-Domain Pilot Prompts
+
+Direct Persona-Caption Generation Prompt
+
+Given the image and the personality trait, write four short, engaging captions
+that match both the visual content and the specified personality. Keep
+each caption natural, grounded in the image, and suitable as a social-media
+utterance.
+
+HUMOR-Style Multi-Path Persona-Caption Prompt
+
+Given the image and the personality trait, first identify the salient visual
+evidence, infer the communicative intent implied by the personality, and
+brainstorm multiple plausible caption angles. Then generate four captions that
+reflect different high-level strategies while remaining grounded in the same
+image-persona group.
+
+48
+
+===== PAGE 49 =====
+
+Persona-Caption Pairwise Judging Prompt
+
+Given the same image, the same personality trait, and two candidate captions,
+choose which caption is better. Judge by engagement, persona consistency,
+visual grounding, coherence, and overall naturalness. Return only A, B, or
+Tie.
+
+Persona-Caption Absolute Scoring Prompt
+
+Given the image, personality trait, and one caption, rate the caption
+independently from 1 to 5 on engagement, persona consistency, visual grounding,
+coherence, and overall quality.
+
+49
+
+===== PAGE 50 =====
+
+O.7 Risk Judge Prompt
+
+Risk Judge Prompt
+
+You are a strict content safety evaluation expert. Please carefully analyze
+this meme image and determine whether it belongs to a risky meme.
+Characteristics of risky memes:
+1. Involving political figures: Contains images, names of political figures,
+or related political content
+2. Sensitive topics: Involves sensitive topics such as race, religion, gender,
+sexual orientation, ethnic conflicts, historical disputes, etc.
+3. Offensive content: Contains discrimination, hate speech, insulting content,
+vulgar pornography, violent threats, etc.
+Evaluation criteria:
+- Even if the content itself may not be illegal, if it involves sensitive topics
+or may cause controversy, it should be marked as risky
+- Please comprehensively consider the offensiveness of the content, sensitivity,
+and potential negative impacts
+Output format (must strictly follow):
+Please output a JSON format result containing the following fields:
+{
+"is_risky": true/false, // Whether this is a risky meme
+"risk_level": "none/low/medium/high", // Risk level (none=no risk, low=low
+risk, medium=medium risk, high=high risk)
+"political_figures": true/false, // Whether it involves political figures
+"sensitive_topics": true/false, // Whether it involves sensitive topics
+"offensive_content": true/false, // Whether it contains overly offensive
+content
+"reason": "Detailed reasoning explaining why this is or is not a risky meme,
+and specific risk types"
+}
+Please carefully analyze the image and then output the JSON result. Output only
+JSON, no other text.
+
+50
+
+===== PAGE 51 =====
+
+NeurIPS Paper Checklist
+1. Claims
+Question: Do the main claims made in the abstract and introduction accurately reflect the paper's
+contributions and scope?
+Answer: [Yes]
+Justification: The abstract and introduction (Section 1) accurately describe the HUMOR frame-
+work's contributions, including hierarchical CoT supervision, group-wise preference modeling,
+and stable policy optimization.
+Guidelines:
+
+The answer [N/A] means that the abstract and introduction do not include the claims made in
+the paper.
+
+The abstract and/or introduction should clearly state the claims made, including the contribu-
+tions made in the paper and important assumptions and limitations. A [No] or [N/A] answer
+to this question will not be perceived well by the reviewers.
+
+The claims made should match theoretical and experimental results, and reflect how much
+the results can be expected to generalize to other settings.
+
+It is fine to include aspirational goals as motivation as long as it is clear that these goals are
+not attained by the paper.
+2. Limitations
+Question: Does the paper discuss the limitations of the work performed by the authors?
+Answer: [Yes]
+Justification: In Appendix M, we provide a self-critical analysis of the HUMOR framework ,
+discussing its 2-3
+fi
+computational overhead , potential biases toward Western internet subcultures
+, and failure modes involving literalism. We also address societal impacts and the risk-auditing
+safeguards implemented to mitigate the generation of offensive content.
+Guidelines:
+
+The answer [N/A] means that the paper has no limitation while the answer [No] means that
+the paper has limitations, but those are not discussed in the paper.
+ The authors are encouraged to create a separate Limitations section in their paper.
+
+The paper should point out any strong assumptions and how robust the results are to vi-
+olations of these assumptions (e.g., independence assumptions, noiseless settings, model
+well-specification, asymptotic approximations only holding locally). The authors should
+reflect on how these assumptions might be violated in practice and what the implications
+would be.
+
+The authors should reflect on the scope of the claims made, e.g., if the approach was only
+tested on a few datasets or with a few runs. In general, empirical results often depend on
+implicit assumptions, which should be articulated.
+
+The authors should reflect on the factors that influence the performance of the approach. For
+example, a facial recognition algorithm may perform poorly when image resolution is low or
+images are taken in low lighting. Or a speech-to-text system might not be used reliably to
+provide closed captions for online lectures because it fails to handle technical jargon.
+
+The authors should discuss the computational efficiency of the proposed algorithms and how
+they scale with dataset size.
+
+If applicable, the authors should discuss possible limitations of their approach to address
+problems of privacy and fairness.
+
+While the authors might fear that complete honesty about limitations might be used by review-
+ers as grounds for rejection, a worse outcome might be that reviewers discover limitations that
+aren't acknowledged in the paper. The authors should use their best judgment and recognize
+that individual actions in favor of transparency play an important role in developing norms
+that preserve the integrity of the community. Reviewers will be specifically instructed to not
+penalize honesty concerning limitations.
+3. Theory assumptions and proofs
+Question: For each theoretical result, does the paper provide the full set of assumptions and a
+complete (and correct) proof?
+Answer: [Yes]
+Justification: Full assumptions and proofs for all propositions (humor lower bounds, rank consis-
+tency, and stability) are provided in Section 3 and Appendices C and D
+51
+
+===== PAGE 52 =====
+
+Guidelines:
+ The answer [N/A] means that the paper does not include theoretical results.
+
+All the theorems, formulas, and proofs in the paper should be numbered and cross-referenced.
+ All assumptions should be clearly stated or referenced in the statement of any theorems.
+
+The proofs can either appear in the main paper or the supplemental material, but if they
+appear in the supplemental material, the authors are encouraged to provide a short proof
+sketch to provide intuition.
+
+Inversely, any informal proof provided in the core of the paper should be complemented by
+formal proofs provided in appendix or supplemental material.
+ Theorems and Lemmas that the proof relies upon should be properly referenced.
+4. Experimental result reproducibility
+Question: Does the paper fully disclose all the information needed to reproduce the main experi-
+mental results of the paper to the extent that it affects the main claims and/or conclusions of the
+paper (regardless of whether the code and data are provided or not)?
+Answer: [Yes]
+Justification: Training hyperparameters, dataset statistics, and model architectures are disclosed in
+Appendices H, I, and I J The future release of HUMOR-CoT and HUMOR-RM models further
+aids reproducibility.
+Guidelines:
+ The answer [N/A] means that the paper does not include experiments.
+
+If the paper includes experiments, a [No] answer to this question will not be perceived well
+by the reviewers: Making the paper reproducible is important, regardless of whether the code
+and data are provided or not.
+
+If the contribution is a dataset and/or model, the authors should describe the steps taken to
+make their results reproducible or verifiable.
+
+Depending on the contribution, reproducibility can be accomplished in various ways. For
+example, if the contribution is a novel architecture, describing the architecture fully might
+suffice, or if the contribution is a specific model and empirical evaluation, it may be necessary
+to either make it possible for others to replicate the model with the same dataset, or provide
+access to the model. In general. releasing code and data is often one good way to accomplish
+this, but reproducibility can also be provided via detailed instructions for how to replicate the
+results, access to a hosted model (e.g., in the case of a large language model), releasing of a
+model checkpoint, or other means that are appropriate to the research performed.
+
+While NeurIPS does not require releasing code, the conference does require all submissions
+to provide some reasonable avenue for reproducibility, which may depend on the nature of
+the contribution. For example
+(a)
+If the contribution is primarily a new algorithm, the paper should make it clear how to
+reproduce that algorithm.
+(b)
+If the contribution is primarily a new model architecture, the paper should describe the
+architecture clearly and fully.
+(c)
+If the contribution is a new model (e.g., a large language model), then there should
+either be a way to access this model for reproducing the results or a way to reproduce
+the model (e.g., with an open-source dataset or instructions for how to construct the
+dataset).
+(d)
+We recognize that reproducibility may be tricky in some cases, in which case authors
+are welcome to describe the particular way they provide for reproducibility. In the case
+of closed-source models, it may be that access to the model is limited in some way (e.g.,
+to registered users), but it should be possible for other researchers to have some path to
+reproducing or verifying the results.
+5. Open access to data and code
+Question: Does the paper provide open access to the data and code, with sufficient instructions to
+faithfully reproduce the main experimental results, as described in supplemental material?
+Answer: [Yes]
+Justification: We have hosted our anonymized datasets and pre-trained models on a dedicated
+Hugging Face repository to facilitate the double-blind review process. The resources can be
+accessed at: https://huggingface.co/datasets/AnonySubmission/HUMOR-Datasets.
+Guidelines:
+52
+
+===== PAGE 53 =====
+
+ The answer [N/A] means that paper does not include experiments requiring code.
+
+Please see the NeurIPS code and data submission guidelines (
+https://neurips.cc/ 
+public/guides/CodeSubmissionPolicy) for more details.
+
+While we encourage the release of code and data, we understand that this might not be
+possible, so [No] is an acceptable answer. Papers cannot be rejected simply for not including
+code, unless this is central to the contribution (e.g., for a new open-source benchmark).
+
+The instructions should contain the exact command and environment needed to run to
+reproduce the results. See the NeurIPS code and data submission guidelines (
+https:// 
+neurips.cc/public/guides/CodeSubmissionPolicy) for more details.
+
+The authors should provide instructions on data access and preparation, including how to
+access the raw data, preprocessed data, intermediate data, and generated data, etc.
+
+The authors should provide scripts to reproduce all experimental results for the new proposed
+method and baselines. If only a subset of experiments are reproducible, they should state
+which ones are omitted from the script and why.
+
+At submission time, to preserve anonymity, the authors should release anonymized versions
+(if applicable).
+
+Providing as much information as possible in supplemental material (appended to the paper)
+is recommended, but including URLs to data and code is permitted.
+6. Experimental setting/details
+Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters,
+how they were chosen, type of optimizer) necessary to understand the results?
+Answer: [Yes]
+Justification: Detailed training setups, including LoRA configurations, learning rates, and dataset
+splits, are provided in Appendix I.
+Guidelines:
+ The answer [N/A] means that the paper does not include experiments.
+
+The experimental setting should be presented in the core of the paper to a level of detail that
+is necessary to appreciate the results and make sense of them.
+
+The full details can be provided either with the code, in appendix, or as supplemental material.
+7. Experiment statistical significance
+Question: Does the paper report error bars suitably and correctly defined or other appropriate
+information about the statistical significance of the experiments?
+Answer: [Yes]
+Justification: The paper reports p-values for reward model consistency in Table 2 and performs a
+two-proportion z-test to verify the significance of Human Rate improvements.
+Guidelines:
+ The answer [N/A] means that the paper does not include experiments.
+
+The authors should answer [Yes] if the results are accompanied by error bars, confidence
+intervals, or statistical significance tests, at least for the experiments that support the main
+claims of the paper.
+
+The factors of variability that the error bars are capturing should be clearly stated (for example,
+train/test split, initialization, random drawing of some parameter, or overall run with given
+experimental conditions).
+
+The method for calculating the error bars should be explained (closed form formula, call to a
+library function, bootstrap, etc.)
+ The assumptions made should be given (e.g., Normally distributed errors).
+ It should be clear whether the error bar is the standard deviation or the standard error of the
+mean.
+
+It is OK to report 1-sigma error bars, but one should state it. The authors should preferably
+report a 2-sigma error bar than state that they have a 96% CI, if the hypothesis of Normality
+of errors is not verified.
+
+For asymmetric distributions, the authors should be careful not to show in tables or figures
+symmetric error bars that would yield results that are out of range (e.g., negative error rates).
+
+If error bars are reported in tables or plots, the authors should explain in the text how they
+were calculated and reference the corresponding figures or tables in the text.
+8. Experiments compute resources
+53
+
+===== PAGE 54 =====
+
+Question: For each experiment, does the paper provide sufficient information on the computer
+resources (type of compute workers, memory, time of execution) needed to reproduce the experi-
+ments?
+Answer: [Yes]
+Justification: The type of GPU (NVIDIA A800) and the specific training hardware settings are
+specified in Appendix I.2.
+Guidelines:
+ The answer [N/A] means that the paper does not include experiments.
+
+The paper should indicate the type of compute workers CPU or GPU, internal cluster, or
+cloud provider, including relevant memory and storage.
+
+The paper should provide the amount of compute required for each of the individual experi-
+mental runs as well as estimate the total compute.
+
+The paper should disclose whether the full research project required more compute than the
+experiments reported in the paper (e.g., preliminary or failed experiments that didn't make it
+into the paper).
+9. Code of ethics
+Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS
+Code of Ethics https://neurips.cc/public/EthicsGuidelines?
+Answer: [Yes]
+Justification: The research conforms to ethics guidelines, including safety-driven dataset cleaning
+and the use of a risk judge for model outputs.
+Guidelines:
+ The answer [N/A] means that the authors have not reviewed the NeurIPS Code of Ethics.
+
+If the authors answer [No], they should explain the special circumstances that require a
+deviation from the Code of Ethics.
+
+The authors should make sure to preserve anonymity (e.g., if there is a special consideration
+due to laws or regulations in their jurisdiction).
+10. Broader impacts
+Question: Does the paper discuss both potential positive societal impacts and negative societal
+impacts of the work performed?
+Answer: [Yes]
+Justification: Potential negative societal impacts, such as the generation of offensive or politically
+sensitive content, are discussed in Appendix M.3.
+Guidelines:
+ The answer [N/A] means that there is no societal impact of the work performed.
+
+If the authors answer [N/A] or [No], they should explain why their work has no societal
+impact or why the paper does not address societal impact.
+
+Examples of negative societal impacts include potential malicious or unintended uses (e.g.,
+disinformation, generating fake profiles, surveillance), fairness considerations (e.g., deploy-
+ment of technologies that could make decisions that unfairly impact specific groups), privacy
+considerations, and security considerations.
+
+The conference expects that many papers will be foundational research and not tied to
+particular applications, let alone deployments. However, if there is a direct path to any
+negative applications, the authors should point it out. For example, it is legitimate to point out
+that an improvement in the quality of generative models could be used to generate Deepfakes
+for disinformation. On the other hand, it is not needed to point out that a generic algorithm
+for optimizing neural networks could enable people to train models that generate Deepfakes
+faster.
+
+The authors should consider possible harms that could arise when the technology is being
+used as intended and functioning correctly, harms that could arise when the technology is
+being used as intended but gives incorrect results, and harms following from (intentional or
+unintentional) misuse of the technology.
+
+If there are negative societal impacts, the authors could also discuss possible mitigation
+strategies (e.g., gated release of models, providing defenses in addition to attacks, mechanisms
+for monitoring misuse, mechanisms to monitor how a system learns from feedback over time,
+improving the efficiency and accessibility of ML).
+11. Safeguards
+54
+
+===== PAGE 55 =====
+
+Question: Does the paper describe safeguards that have been put in place for responsible release
+of data or models that have a high risk for misuse (e.g., pre-trained language models, image
+generators, or scraped datasets)?
+Answer: [Yes]
+Justification: The authors implemented an automated safety filtering protocol during data collection
+and used Gemini-2.5-pro as a dedicated risk auditor for model outputs.
+Guidelines:
+ The answer [N/A] means that the paper poses no such risks.
+
+Released models that have a high risk for misuse or dual-use should be released with necessary
+safeguards to allow for controlled use of the model, for example by requiring that users
+adhere to usage guidelines or restrictions to access the model or implementing safety filters.
+
+Datasets that have been scraped from the Internet could pose safety risks. The authors should
+describe how they avoided releasing unsafe images.
+
+We recognize that providing effective safeguards is challenging, and many papers do not
+require this, but we encourage authors to take this into account and make a best faith effort.
+12. Licenses for existing assets
+Question: Are the creators or original owners of assets (e.g., code, data, models), used in the
+paper, properly credited and are the license and terms of use explicitly mentioned and properly
+respected?
+Answer: [Yes]
+Justification: The paper properly credits base models (e.g., Qwen2.5, InternVL) and existing
+datasets [Xu et al., 2024].
+Guidelines:
+ The answer [N/A] means that the paper does not use existing assets.
+ The authors should cite the original paper that produced the code package or dataset.
+ The authors should state which version of the asset is used and, if possible, include a URL.
+ The name of the license (e.g., CC-BY 4.0) should be included for each asset.
+
+For scraped data from a particular source (e.g., website), the copyright and terms of service
+of that source should be provided.
+
+If assets are released, the license, copyright information, and terms of use in the package
+should be provided. For popular datasets,
+paperswithcode.com/datasets
+has curated
+licenses for some datasets. Their licensing guide can help determine the license of a dataset.
+
+For existing datasets that are re-packaged, both the original license and the license of the
+derived asset (if it has changed) should be provided.
+
+If this information is not available online, the authors are encouraged to reach out to the
+asset's creators.
+13. New assets
+Question: Are new assets introduced in the paper well documented and is the documentation
+provided alongside the assets?
+Answer: [Yes]
+Justification: We introduce the HUMOR-CoT reasoning dataset and the HUMOR-RM preference
+model, both of which are documented in Section 3 and AppendixG H. These assets have been
+uploaded to an anonymous repository to support the review process:
+https://huggingface. 
+co/datasets/AnonySubmission/HUMOR-Datasets.
+Guidelines:
+ The answer [N/A] means that the paper does not release new assets.
+
+Researchers should communicate the details of the dataset/code/model as part of their
+submissions via structured templates. This includes details about training, license, limitations,
+etc.
+
+The paper should discuss whether and how consent was obtained from people whose asset is
+used.
+
+At submission time, remember to anonymize your assets (if applicable). You can either create
+an anonymized URL or include an anonymized zip file.
+14. Crowdsourcing and research with human subjects
+Question: For crowdsourcing experiments and research with human subjects, does the paper
+include the full text of instructions given to participants and screenshots, if applicable, as well as
+details about compensation (if any)?
+55
+
+===== PAGE 56 =====
+
+Answer: [Yes]
+Justification: Human evaluation details, including recruitment via Prolific, compensation ( £9/hr),
+and specific task instructions, are provided in Appendix J.1
+Guidelines:
+
+The answer [N/A] means that the paper does not involve crowdsourcing nor research with
+human subjects.
+
+Including this information in the supplemental material is fine, but if the main contribution
+of the paper involves human subjects, then as much detail as possible should be included in
+the main paper.
+
+According to the NeurIPS Code of Ethics, workers involved in data collection, curation, or
+other labor should be paid at least the minimum wage in the country of the data collector.
+15.
+Institutional review board (IRB) approvals or equivalent for research with human subjects
+Question: Does the paper describe potential risks incurred by study participants, whether such
+risks were disclosed to the subjects, and whether Institutional Review Board (IRB) approvals
+(or an equivalent approval/review based on the requirements of your country or institution) were
+obtained?
+Answer: [Yes]
+Justification: The human studies were conducted as formal research tasks following fair-pay
+guidelines and eligibility filters.
+Guidelines:
+
+The answer [N/A] means that the paper does not involve crowdsourcing nor research with
+human subjects.
+
+Depending on the country in which research is conducted, IRB approval (or equivalent) may
+be required for any human subjects research. If you obtained IRB approval, you should
+clearly state this in the paper.
+
+We recognize that the procedures for this may vary significantly between institutions and
+locations, and we expect authors to adhere to the NeurIPS Code of Ethics and the guidelines
+for their institution.
+
+For initial submissions, do not include any information that would break anonymity (if
+applicable), such as the institution conducting the review.
+16. Declaration of LLM usage
+Question: Does the paper describe the usage of LLMs if it is an important, original, or non-
+standard component of the core methods in this research? Note that if the LLM is used only for
+writing, editing, or formatting purposes and does not impact the core methodology, scientific rigor,
+or originality of the research, declaration is not required.
+Answer: [Yes]
+Justification: The use of LLMs as "teachers" for CoT synthesis and as evaluators for metric
+calculation is explicitly declared in the methods and experimental setup.
+Guidelines:
+
+The answer [N/A] means that the core method development in this research does not involve
+LLMs as any important, original, or non-standard components.
+
+Please refer to our LLM policy in the NeurIPS handbook for what should or should not be
+described. 
+56

@@ -1,0 +1,12 @@
+poster_width_cm: 140
+poster_height_cm: 90
+orientation: landscape
+language: en
+main_text_font_size: 28
+section_title_font_size: 42
+poster_title_font_size: 74
+poster_author_font_size: 31
+title_text_color: [22, 47, 63]
+main_text_color: [51, 75, 89]
+section_title_symbol: ''
+layout_revision: 6
